@@ -335,25 +335,29 @@ with tab2:
 # ==========================================
 # TAB 3: BEYAZ TAHTA & SORU ÇÖZÜMÜ (CANVAS)
 # ==========================================
-# ==========================================
-# TAB 3: BEYAZ TAHTA & SORU ÇÖZÜMÜ (CANVAS)
-# ==========================================
 with tab3:
     st.subheader("🎨 Etkileşimli Beyaz Tahta & Soru Çözüm Paneli")
-    st.caption("Aşağıdaki araçlarla soru yükleyebilir, kalemi seçerek soru üzerine veya boş tahtaya çözüm yapabilirsiniz.")
+    st.caption("Fırça/kalem yardımıyla boş tahtada çizim yapabilir veya soru resmi yükleyip üzerine çözüm yapabilirsiniz.")
 
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
+        # MOD SEÇİMİ (Boş Tahta veya Soru Yükleme)
+        tahta_modu = st.radio(
+            "📌 Tahta Kullanım Modu Seçin:",
+            ["⚪ Boş Beyaz Tahta", "🖼️ Soru Yükle ve Çöz"],
+            horizontal=True,
+            key="canvas_mode_radio"
+        )
+
         col_c1, col_c2 = st.columns([1, 3])
 
         with col_c1:
-            st.markdown("#### ⚙️ Tuval ve Kalem Ayarları")
+            st.markdown("#### ⚙️ Kalem & Tuval Ayarları")
             
-            # Çizim Modu Seçimi (Varsayılan: Kalem ile Yazı/Çizim)
             mode_option = st.selectbox(
                 "🖌️ Araç Seçin:",
-                ["Kalem (Serbest Çizim)", "Düz Çizgi", "Dikdörtgen", "Daire", "Çizimleri Seç / Taşı"],
+                ["Kalem (Serbest Çizim)", "Düz Çizgi", "Dikdörtgen", "Daire", "Seç / Taşı"],
                 index=0
             )
             
@@ -362,45 +366,64 @@ with tab3:
                 "Düz Çizgi": "line",
                 "Dikdörtgen": "rect",
                 "Daire": "circle",
-                "Çizimleri Seç / Taşı": "transform"
+                "Seç / Taşı": "transform"
             }
             drawing_mode = mode_map[mode_option]
 
-            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 20, 3)
+            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 25, 4)
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
-            bg_color = st.color_picker("🖼️ Arka Plan Rengi (Görsel Yoksa):", "#FFFFFF")
+            bg_color = st.color_picker("🖼️ Tahta Arka Plan Rengi:", "#FFFFFF")
 
-            st.divider()
-            st.markdown("#### 🖼️ Soru / Görsel Yükle")
-            uploaded_file = st.file_uploader("Bir Soru Görseli Yükleyin (PNG, JPG):", type=["png", "jpg", "jpeg"], key="canvas_file_uploader")
-            
             bg_image = None
-            if uploaded_file is not None:
-                try:
-                    # Görseli açıp RGBA formatına çeviriyoruz (Tuval uyumluluğu için)
-                    bg_image = Image.open(uploaded_file).convert("RGBA")
-                    st.success("🖼️ Görsel yüklendi!")
-                except Exception as e:
-                    st.error(f"Görsel açılırken hata oluştu: {e}")
+            canvas_width = 750
+            canvas_height = 550
+
+            if tahta_modu == "🖼️ Soru Yükle ve Çöz":
+                st.divider()
+                st.markdown("#### 🖼️ Soru Yükle")
+                uploaded_file = st.file_uploader(
+                    "Soru Görseli Seçin (PNG, JPG):", 
+                    type=["png", "jpg", "jpeg"],
+                    key="question_uploader"
+                )
+                
+                if uploaded_file is not None:
+                    try:
+                        img = Image.open(uploaded_file).convert("RGBA")
+                        # Tuvala tam sığması için maksimum genişliği 750px olarak ölçeklendiriyoruz
+                        max_w = 750
+                        w_percent = (max_w / float(img.size[0]))
+                        h_size = int((float(img.size[1]) * float(w_percent)))
+                        img = img.resize((max_w, h_size), Image.Resampling.LANCZOS)
+                        
+                        bg_image = img
+                        canvas_width = max_w
+                        canvas_height = h_size
+                        st.success("✅ Soru yüklendi, hemen çizime başlayabilirsiniz!")
+                    except Exception as e:
+                        st.error(f"Görsel işlenirken hata oluştu: {e}")
 
         with col_c2:
-            st.markdown("**✏️ Çizim Alanı** *(Görsel üzerine fırçayla çözüm yapabilirsiniz)*")
+            st.markdown(f"**✏️ Çizim Alanı ({tahta_modu})**")
+            
+            # Key seçeneğini moda göre dinamik veriyoruz ki mod değiştiğinde tuval temizleşsin
+            canvas_key = "canvas_empty" if tahta_modu == "⚪ Boş Beyaz Tahta" else "canvas_question"
+
             canvas_result = st_canvas(
                 fill_color="rgba(255, 165, 0, 0.2)",
                 stroke_width=stroke_width,
                 stroke_color=stroke_color,
-                background_color=bg_color,
-                background_image=bg_image,
+                background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" or bg_image is None else None,
+                background_image=bg_image if tahta_modu == "🖼️ Soru Yükle ve Çöz" else None,
                 update_streamlit=True,
-                height=550,
-                width=750,
+                height=canvas_height,
+                width=canvas_width,
                 drawing_mode=drawing_mode,
-                key="lgs_canvas_main",
+                key=canvas_key,
             )
-            
-            # Çözümlü Görseli İndirme Butonu
+
+            # ÇÖZÜMÜ İNDİRME BUTONU
             if canvas_result is not None and canvas_result.image_data is not None:
-                # Tuval üzerindeki çizimleri ve resmi birleştirip indirme imkanı
                 res_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
                 import io
                 buf = io.BytesIO()
@@ -408,7 +431,7 @@ with tab3:
                 byte_im = buf.getvalue()
                 
                 st.download_button(
-                    label="💾 Çözümlü Soruyu / Tahtayı Bilgisayara İndir",
+                    label="💾 Çözümü / Çizimi Bilgisayara İndir (PNG)",
                     data=byte_im,
                     file_name=f"LGS_Cozum_{date.today().strftime('%Y%m%d')}.png",
                     mime="image/png",
