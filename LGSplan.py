@@ -1,18 +1,18 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import time
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="LGS 7/8 Çalışma, Deneme & Veli Takip",
+    page_title="LGS 7/8 Akıllı Çalışma & Veli Takip",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM CSS (TASARIM & MOBİL UYUM) ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     .stApp {
@@ -25,24 +25,19 @@ st.markdown("""
         color: #1E3A8A !important;
     }
     
-    [data-testid="stMetricLabel"] {
-        font-weight: 600 !important;
-        color: #4B5563 !important;
-    }
-    
     .main-header {
         background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
-        padding: 20px;
+        padding: 22px;
         border-radius: 14px;
         color: white;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         text-align: center;
         box-shadow: 0 4px 10px rgba(30, 64, 175, 0.15);
     }
     .main-header h1 {
         color: white !important;
         margin: 0;
-        font-size: 1.8rem;
+        font-size: 1.9rem;
     }
     .main-header p {
         color: #DBEAFE !important;
@@ -50,10 +45,15 @@ st.markdown("""
         margin-bottom: 0;
     }
 
-    .stCheckbox label {
-        font-size: 1.05rem !important;
+    .badge-card {
+        background-color: #F3F4F6;
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+        border: 1px solid #E5E7EB;
+        margin-bottom: 10px;
     }
-    
+
     .stButton>button {
         border-radius: 10px !important;
         font-weight: 600 !important;
@@ -125,6 +125,15 @@ if not USE_SUPABASE:
                     tamamlandi INTEGER,
                     PRIMARY KEY (ders, konu)
                 )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS yanlis_defteri (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tarih TEXT,
+                    ders TEXT,
+                    konu TEXT,
+                    soru_notu TEXT,
+                    cozuldu INTEGER DEFAULT 0
+                )''')
     conn.commit()
 
 # --- CONSTANTS ---
@@ -148,20 +157,19 @@ VARSAYILAN_KONULAR = {
     "İngilizce": ["Friendship", "Teen Life", "In the Kitchen", "On the Phone", "The Internet"]
 }
 
-# --- USER AUTHENTICATION ---
 USERS = {
     "ogrenci": {"password": "123", "role": "Öğrenci"},
     "veli": {"password": "456", "role": "Veli"}
 }
 
+# --- AUTHENTICATION ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = None
 
 def login_screen():
-    st.markdown('<div class="main-header"><h1>🎓 LGS Çalışma, Deneme & Veli Takip</h1><p>Disiplinli Çalışma, Şeffaf Takip</p></div>', unsafe_allow_html=True)
-    
+    st.markdown('<div class="main-header"><h1>🎓 LGS Akıllı Çalışma & Veli Takip</h1><p>Disiplin, Oyunlaştırma ve Şeffaf Takip</p></div>', unsafe_allow_html=True)
     _, col2, _ = st.columns([1, 2, 1])
     with col2:
         with st.form("login_form"):
@@ -169,23 +177,27 @@ def login_screen():
             username = st.selectbox("Kullanıcı Rolü", ["ogrenci", "veli"], format_func=lambda x: "Öğrenci Girişi 🎒" if x == "ogrenci" else "Veli Girişi 🛡️")
             password = st.text_input("Şifre", type="password")
             submit = st.form_submit_button("Sisteme Giriş Yap", type="primary")
-            
             if submit:
                 if username in USERS and USERS[username]["password"] == password:
                     st.session_state["logged_in"] = True
                     st.session_state["user_role"] = USERS[username]["role"]
                     st.rerun()
                 else:
-                    st.error("❌ Hatalı şifre! Lütfen tekrar deneyin.")
+                    st.error("❌ Hatalı şifre!")
 
 if not st.session_state["logged_in"]:
     login_screen()
     st.stop()
 
-# --- SIDEBAR ---
+# --- SIDEBAR & BANNER ---
 st.sidebar.markdown(f"### 👤 Rol: **{st.session_state['user_role']}**")
-db_badge = "☁️ Supabase (Bulut)" if USE_SUPABASE else "💾 SQLite (Yerel)"
-st.sidebar.caption(f"Veritabanı: **{db_badge}**")
+
+# LGS Geri Sayım Hesaplayıcı (Tahmini Haziranda LGS)
+lgs_tarihi = date(2027, 6, 6) if date.today().year == 2026 and date.today().month > 6 else date(date.today().year + (1 if date.today().month > 6 else 0), 6, 7)
+kalan_gun = (lgs_tarihi - date.today()).days
+
+st.sidebar.metric("⏳ LGS'ye Kalan Gün", f"{kalan_gun} Gün")
+st.sidebar.divider()
 
 if st.sidebar.button("🚪 Çıkış Yap"):
     st.session_state["logged_in"] = False
@@ -194,19 +206,21 @@ if st.sidebar.button("🚪 Çıkış Yap"):
 
 st.markdown(f'''
 <div class="main-header">
-    <h1>📚 LGS Hazırlık & Disiplin Paneli</h1>
-    <p>Aktif Mod: <b>{st.session_state['user_role']}</b></p>
+    <h1>📚 LGS Hazırlık & Akıllı Takip Paneli</h1>
+    <p>Aktif Mod: <b>{st.session_state['user_role']}</b> | 🎯 LGS'ye <b>{kalan_gun}</b> Gün Kaldı!</p>
 </div>
 ''', unsafe_allow_html=True)
 
 # TABS DEFINITION
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "📝 Günlük Görevler & Ders Soru Girişi", 
-    "📝 Deneme Sınavları & LGS Puanı",
-    "🎯 Konu / Müfredat Takibi",
-    "⏱️ Pomodoro Sayacı",
-    "🛡️ Veli Onay & Notlar", 
-    "📊 Genel Analiz & Rapor"
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    "📝 Günlük Görev & Soru", 
+    "📝 Denemeler & LGS Puanı",
+    "📕 Yanlış Defteri",
+    "🎯 Müfredat Takibi",
+    "🏆 Puan & Rozetler",
+    "⏱️ Pomodoro",
+    "🛡️ Veli Onay", 
+    "📊 Analiz & Koçluk"
 ])
 
 # ==========================================
@@ -216,45 +230,28 @@ with tab1:
     secilen_tarih = st.date_input("📅 Takip Tarihi Seçin", date.today())
     tarih_str = secilen_tarih.strftime("%Y-%m-%d")
 
-    gunler_tr = {0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe", 4: "Cuma", 5: "Cumartesi", 6: "Pazar"}
-    st.info(f"📅 **Günün Programı ({gunler_tr[secilen_tarih.weekday()]}):** " + 
-            ("🏫 08:30 - 16:30 Okul Saati" if secilen_tarih.weekday() < 5 else 
-             "📖 08:30 - 13:30 Dershane Saati" if secilen_tarih.weekday() == 5 else 
-             "🇬🇧 08:30 - 12:30 İngilizce Kursu | 📖 14:00 - 19:00 Dershane Saati"))
+    # Günlük Hedef Çubuğu
+    gunluk_hedef = st.number_input("🎯 Günlük Soru Hedefi", min_value=50, max_value=500, value=150, step=10)
 
-    st.subheader("📋 Günlük Rutin Listesi")
-    varsayilan_gorevler = [
-        "Ders Tekrarı (Okul/Dershane konuları)",
-        "Soru Çözümü & Ödevler",
-        "Kitap Okuma Saati (En az 30 dk)",
-        "Çanta ve Yarınki Plan Hazırlığı",
-        "Eğlence / Dinlenme / Spor Saati"
-    ]
-
-    mevcut_gorevler = {}
-    if not USE_SUPABASE:
-        c.execute("SELECT gorev, durum FROM gunluk_takip WHERE tarih=?", (tarih_str,))
-        mevcut_gorevler = dict(c.fetchall())
-
-    yeni_durumlar = {}
-    for g in varsayilan_gorevler:
-        val = bool(mevcut_gorevler.get(g, 0))
-        yeni_durumlar[g] = st.checkbox(g, value=val, disabled=(st.session_state["user_role"] == "Veli"))
-
-    st.divider()
     st.subheader("📊 Ders Bazlı Soru Çözümü & Net Takibi")
-
     soru_verileri = {}
+    toplam_cozuldu = 0
     cols = st.columns(3)
     for i, ders in enumerate(DERSLER):
         with cols[i % 3]:
             st.markdown(f"**{ders}**")
-            d = st.number_input(f"{ders} Doğru", min_value=0, value=0, step=1, key=f"{ders}_d", disabled=(st.session_state["user_role"] == "Veli"))
-            y = st.number_input(f"{ders} Yanlış", min_value=0, value=0, step=1, key=f"{ders}_y", disabled=(st.session_state["user_role"] == "Veli"))
-            b = st.number_input(f"{ders} Boş", min_value=0, value=0, step=1, key=f"{ders}_b", disabled=(st.session_state["user_role"] == "Veli"))
+            d = st.number_input(f"{ders} D", min_value=0, value=0, step=1, key=f"{ders}_d", disabled=(st.session_state["user_role"] == "Veli"))
+            y = st.number_input(f"{ders} Y", min_value=0, value=0, step=1, key=f"{ders}_y", disabled=(st.session_state["user_role"] == "Veli"))
+            b = st.number_input(f"{ders} B", min_value=0, value=0, step=1, key=f"{ders}_b", disabled=(st.session_state["user_role"] == "Veli"))
             net = max(0.0, round(d - (y / 3.0), 2))
+            toplam_cozuldu += (d + y + b)
             st.caption(f"📈 Net: **{net}**")
             soru_verileri[ders] = (d, y, b, net)
+
+    # Hedef Bar
+    hedef_yuzde = min(1.0, toplam_cozuldu / gunluk_hedef)
+    st.markdown(f"**Günlük Hedef İlerlemesi ({toplam_cozuldu} / {gunluk_hedef} Soru)**")
+    st.progress(hedef_yuzde)
 
     st.divider()
     okunan_sayfa = st.number_input("📖 Bugün Okunan Kitap Sayfası", min_value=0, value=0, step=5, disabled=(st.session_state["user_role"] == "Veli"))
@@ -262,11 +259,6 @@ with tab1:
     if st.session_state["user_role"] == "Öğrenci":
         if st.button("💾 Günlük Verileri Kaydet", type="primary"):
             if not USE_SUPABASE:
-                for g, dur in yeni_durumlar.items():
-                    c.execute("""INSERT INTO gunluk_takip (tarih, gorev, durum, veli_onay, veli_notu) 
-                                 VALUES (?, ?, ?, 0, '') ON CONFLICT(tarih, gorev) DO UPDATE SET durum=excluded.durum""",
-                              (tarih_str, g, int(dur)))
-                
                 for ders, (d, y, b, net) in soru_verileri.items():
                     c.execute("""INSERT INTO ders_soru_takip (tarih, ders, dogru, yanlis, bos, net)
                                  VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(tarih, ders) DO UPDATE SET 
@@ -277,38 +269,33 @@ with tab1:
                              ON CONFLICT(tarih) DO UPDATE SET okunan_sayfa=excluded.okunan_sayfa""",
                           (tarih_str, okunan_sayfa))
                 conn.commit()
-            st.success("Günün verileri başarıyla kaydedildi! 🎉")
+            st.success("Günün verileri kaydedildi! 🎉")
 
 # ==========================================
 # TAB 2: DENEME SINAVLARI & LGS PUANI
 # ==========================================
 with tab2:
     st.subheader("📝 LGS Deneme Sınavı Kaydı ve Puan Hesaplama")
-
     with st.form("deneme_form"):
-        deneme_adi = st.text_input("Deneme Sınavı Adı / Yayın", "Örn: Özdebir 1. Deneme")
+        deneme_adi = st.text_input("Deneme Sınavı Adı", "Örn: Özdebir 1. Deneme")
         deneme_tarihi = st.date_input("Deneme Tarihi", date.today())
         
-        st.markdown("##### Ders Netleri Girişi")
         d_cols = st.columns(3)
         netler = {}
         for i, ders in enumerate(DERSLER):
             with d_cols[i % 3]:
-                # 20 soruluk dersler için varsayılan 15, 10 soruluk dersler için varsayılan 8 olarak ayarlandı
-                max_soru = 20 if ders in ["Türkçe", "Matematik", "Fen"] else 10
-                varsayilan_d = 15 if max_soru == 20 else 8
-                
-                d = st.number_input(f"{ders} D", min_value=0, max_value=max_soru, value=varsayilan_d, key=f"den_{ders}_d")
-                y = st.number_input(f"{ders} Y", min_value=0, max_value=max_soru, value=2, key=f"den_{ders}_y")
+                max_s = 20 if ders in ["Türkçe", "Matematik", "Fen"] else 10
+                varsayilan_d = 15 if max_s == 20 else 8
+                d = st.number_input(f"{ders} D", min_value=0, max_value=max_s, value=varsayilan_d, key=f"den_{ders}_d")
+                y = st.number_input(f"{ders} Y", min_value=0, max_value=max_s, value=2, key=f"den_{ders}_y")
                 net = max(0.0, round(d - (y / 3.0), 2))
                 netler[ders] = net
                 st.caption(f"{ders} Net: **{net}**")
 
-        submit_deneme = st.form_submit_button("🏆 Denemeyi Kaydet ve Puan Hesapla", type="primary")
+        submit_deneme = st.form_submit_button("🏆 Denemeyi Kaydet", type="primary")
 
     if submit_deneme:
         toplam_net = sum(netler.values())
-        # LGS Tahmini Puan Hesaplama Modeli (Taban Puan ~190 + Net Katsayı Ağırlıkları)
         agirlikli_puan = sum(netler[ders] * LGS_KATSAYILAR[ders] for ders in DERSLER)
         tahmini_puan = min(500.0, round(190.0 + (agirlikli_puan * 1.52), 2))
 
@@ -326,23 +313,47 @@ with tab2:
             conn.commit()
 
     st.divider()
-    st.subheader("📈 Deneme Sınavı Gelişim Grafiği")
     if not USE_SUPABASE:
         df_deneme = pd.read_sql_query("SELECT * FROM denemeler ORDER BY tarih ASC", conn)
         if not df_deneme.empty:
             st.dataframe(df_deneme[['tarih', 'deneme_adi', 'toplam_net', 'puan']], use_container_width=True)
             st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
-        else:
-            st.info("Henüz kayıtlı deneme sınavı bulunmuyor.")
 
 # ==========================================
-# TAB 3: MÜFREDAT / KONU TAKİBİ
+# TAB 3: YANLIŞ DEFTERİ (HATALI SORU BANKASI)
 # ==========================================
 with tab3:
-    st.subheader("🎯 LGS Konu ve Müfredat Takip Paneli")
-    secilen_ders_konu = st.selectbox("Ders Seçin", DERSLER)
+    st.subheader("📕 Yanlış Defteri & Zorlanılan Sorular")
+    st.caption("Denemelerde ve testlerde yapamadığınız soruları buraya kaydedip tekrar inceleyin.")
 
-    st.markdown(f"### **{secilen_ders_konu} Konu Listesi**")
+    with st.form("yanlis_form"):
+        y_ders = st.selectbox("Ders", DERSLER)
+        y_konu = st.text_input("Konu Adı", "Örn: Üslü İfadeler")
+        y_not = st.text_area("Soru Detayı / Nerede Hata Yapıldı?", "Örn: Negatif üs kuralını unuttuğum için yanlış çıktı.")
+        submit_y = st.form_submit_button("➕ Hatalı Soruyu Kaydet")
+
+        if submit_y:
+            if not USE_SUPABASE:
+                c.execute("INSERT INTO yanlis_defteri (tarih, ders, konu, soru_notu, cozuldu) VALUES (?, ?, ?, ?, 0)",
+                          (date.today().strftime("%Y-%m-%d"), y_ders, y_konu, y_not))
+                conn.commit()
+            st.success("Hatalı soru defterinize eklendi! Tekrar etmeyi unutmayın.")
+
+    st.divider()
+    st.subheader("📋 Kayıtlı Hatalı Sorularınız")
+    if not USE_SUPABASE:
+        df_y = pd.read_sql_query("SELECT id, tarih, ders, konu, soru_notu FROM yanlis_defteri WHERE cozuldu=0", conn)
+        if not df_y.empty:
+            st.dataframe(df_y, use_container_width=True)
+        else:
+            st.info("Harika! Yanlış defteriniz boş veya tüm sorular çözüldü! 🎉")
+
+# ==========================================
+# TAB 4: MÜFREDAT TAKİBİ
+# ==========================================
+with tab4:
+    st.subheader("🎯 LGS Konu ve Müfredat Takip Paneli")
+    secilen_ders_konu = st.selectbox("Ders Seçin", DERSLER, key="mufredat_ders")
     konular = VARSAYILAN_KONULAR[secilen_ders_konu]
     
     tamamlanan_sayisi = 0
@@ -353,12 +364,63 @@ with tab3:
             
     yuzde = int((tamamlanan_sayisi / len(konular)) * 100) if konular else 0
     st.progress(yuzde / 100)
-    st.caption(f"Gelişim: **%{yuzde}** tamamlandı ({tamamlanan_sayisi}/{len(konular)} Konu)")
+    st.caption(f"Müfredat Tamamlanma: **%{yuzde}** ({tamamlanan_sayisi}/{len(konular)} Konu)")
 
 # ==========================================
-# TAB 4: POMODORO ZAMANLAYICI
+# TAB 5: ROZET VE PUAN SİSTEMİ (OYUNLAŞTIRMA)
 # ==========================================
-with tab4:
+with tab5:
+    st.subheader("🏆 Puan Paneli & Başarı Rozetleri")
+    
+    toplam_s = 0
+    toplam_sayfa = 0
+    if not USE_SUPABASE:
+        df_s = pd.read_sql_query("SELECT dogru, yanlis, bos FROM ders_soru_takip", conn)
+        if not df_s.empty:
+            toplam_s = int(df_s.sum().sum())
+        df_o = pd.read_sql_query("SELECT okunan_sayfa FROM okuma_takip", conn)
+        if not df_o.empty:
+            toplam_sayfa = int(df_o['okunan_sayfa'].sum())
+
+    toplam_puan = (toplam_s * 2) + (toplam_sayfa * 3)
+
+    st.metric("⭐ Toplam LGS Başarı Puanı", f"{toplam_puan} XP")
+    st.divider()
+
+    st.subheader("🎖️ Kazanılan Rozetler")
+    r1, r2, r3 = st.columns(3)
+    
+    with r1:
+        st.markdown(f'''
+        <div class="badge-card">
+            <h3>{"🎯" if toplam_s >= 500 else "🔒"}</h3>
+            <b>500 Soru Kulübü</b><br>
+            <small>{"Kazanıldı!" if toplam_s >= 500 else "500 Soruya Ulaş"}</small>
+        </div>
+        ''', unsafe_allow_html=True)
+
+    with r2:
+        st.markdown(f'''
+        <div class="badge-card">
+            <h3>{"📚" if toplam_sayfa >= 200 else "🔒"}</h3>
+            <b>Kitap Kurdu</b><br>
+            <small>{"Kazanıldı!" if toplam_sayfa >= 200 else "200 Sayfa Okunmalı"}</small>
+        </div>
+        ''', unsafe_allow_html=True)
+
+    with r3:
+        st.markdown(f'''
+        <div class="badge-card">
+            <h3>{"⚡" if toplam_puan >= 1000 else "🔒"}</h3>
+            <b>LGS Şampiyonu</b><br>
+            <small>{"Kazanıldı!" if toplam_puan >= 1000 else "1000 XP Biriktir"}</small>
+        </div>
+        ''', unsafe_allow_html=True)
+
+# ==========================================
+# TAB 6: POMODORO ZAMANLAYICI
+# ==========================================
+with tab6:
     st.subheader("⏱️ Odaklanma Zamanlayıcısı (Pomodoro)")
     col_p1, col_p2 = st.columns(2)
     with col_p1:
@@ -366,23 +428,41 @@ with tab4:
     with col_p2:
         mola_dk = st.number_input("Mola Süresi (Dakika)", min_value=1, max_value=30, value=5)
 
-    if st.button("▶️ Zamanlayıcıyı Başlat"):
-        saniye = sure_dk * 60
-        ph = st.empty()
+    if "pomodoro_active" not in st.session_state:
+        st.session_state["pomodoro_active"] = False
+
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("▶️ Zamanlayıcıyı Başlat"):
+            st.session_state["pomodoro_active"] = True
+    with col_btn2:
+        if st.button("⏹️ Durdur / Sıfırla"):
+            st.session_state["pomodoro_active"] = False
+            st.rerun()
+
+    if st.session_state["pomodoro_active"]:
         st.warning("🔥 Odaklanma Süresi Başladı! İyi Çalışmalar!")
-        while saniye > 0:
-            dk, sn = divmod(saniye, 60)
-            ph.header(f"⏳ **{dk:02d}:{sn:02d}**")
+        timer_placeholder = st.empty()
+        
+        saniye = sure_dk * 60
+        for s in range(saniye, -1, -1):
+            if not st.session_state["pomodoro_active"]:
+                break
+            dk, sn = divmod(s, 60)
+            timer_placeholder.header(f"⏳ **{dk:02d}:{sn:02d}**")
             time.sleep(1)
-            saniye -= 1
-        st.success("🎉 Süre bitti! Şimdi harika bir molayı hak ettin!")
+            
+        if st.session_state["pomodoro_active"]:
+            st.session_state["pomodoro_active"] = False
+            timer_placeholder.empty()
+            st.balloons()
+            st.success("🎉 Süre bitti! Şimdi harika bir molayı hak ettin!")
 
 # ==========================================
-# TAB 5: VELİ ONAY PANELİ
+# TAB 7: VELİ ONAY PANELİ
 # ==========================================
-with tab5:
+with tab7:
     st.subheader("🛡️ Veli Kontrolü ve Onay Paneli")
-    
     mevcut_onay = False
     mevcut_not = ""
     if not USE_SUPABASE:
@@ -401,39 +481,43 @@ with tab5:
 
     if st.session_state["user_role"] == "Veli":
         st.divider()
-        st.subheader("Değerlendirmeyi Güncelle")
         onay_kutusu = st.checkbox("Günü Onayla (Çalışmalar Tamamlandı)", value=mevcut_onay)
         veli_notu_giris = st.text_area("Çocuğunuza Motivasyon / Değerlendirme Notu Ekle", value=mevcut_not)
         
         if st.button("✔ Veli Onayını Kaydet", type="primary"):
             if not USE_SUPABASE:
-                c.execute("UPDATE gunluk_takip SET veli_onay=?, veli_notu=? WHERE tarih=?",
-                          (int(onay_kutusu), veli_notu_giris, tarih_str))
+                c.execute("""INSERT INTO gunluk_takip (tarih, gorev, durum, veli_onay, veli_notu)
+                             VALUES (?, 'Genel', 1, ?, ?) ON CONFLICT(tarih, gorev) DO UPDATE SET veli_onay=excluded.veli_onay, veli_notu=excluded.veli_notu""",
+                          (tarih_str, int(onay_kutusu), veli_notu_giris))
                 conn.commit()
-            st.success("Veli onayı ve notu kaydedildi!")
+            st.success("Veli onayı kaydedildi!")
             st.rerun()
 
 # ==========================================
-# TAB 6: GENEL ANALİZ VE RAPOR
+# TAB 8: AKILLI KOÇLUK & RAPOR İNDİRME
 # ==========================================
-with tab6:
-    st.subheader("📊 Genel Performans Analizi")
+with tab8:
+    st.subheader("🤖 Yapay Zeka / Akıllı LGS Koçluk Tavsiyeleri")
+    
     if not USE_SUPABASE:
         df_soru = pd.read_sql_query("SELECT * FROM ders_soru_takip", conn)
-        df_okuma = pd.read_sql_query("SELECT * FROM okuma_takip", conn)
         
-        col_r1, col_r2 = st.columns(2)
-        with col_r1:
-            toplam_s = df_soru['dogru'].sum() + df_soru['yanlis'].sum() + df_soru['bos'].sum() if not df_soru.empty else 0
-            st.metric("Toplam Çözülen Soru", f"{toplam_s} Soru")
-        with col_r2:
-            toplam_sayfa = df_okuma['okunan_sayfa'].sum() if not df_okuma.empty else 0
-            st.metric("Toplam Okunan Sayfa", f"{toplam_sayfa} Sayfa")
+        if not df_soru.empty:
+            toplam_netler = df_soru.groupby('ders')['net'].sum()
+            en_dusuk_ders = toplam_netler.idxmin() if not toplam_netler.empty else "Matematik"
+            
+            st.info(f"💡 **Akıllı Koç Analizi:** Verilerinize göre son zamanlarda en çok desteğe ihtiyaç duyduğunuz ders **{en_dusuk_ders}**. Bu hafta bu derse her gün +20 soru eklemenizi öneriyorum!")
+        else:
+            st.info("💡 **Akıllı Koç Analizi:** Koçluk tavsiyelerinin oluşması için lütfen soru çözümlerinizi girmeye devam edin.")
 
         st.divider()
+        st.subheader("📄 Çalışma Raporunu İndir")
         if not df_soru.empty:
-            st.subheader("Derslere Göre Çözülen Toplam Soru Dağılımı")
-            df_ders_toplam = df_soru.groupby('ders')[['dogru', 'yanlis', 'bos']].sum()
-            st.bar_chart(df_ders_toplam)
-        else:
-            st.info("Henüz grafik gösterilecek soru verisi girişi yapılmadı.")
+            csv_data = df_soru.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Tüm Performans Raporunu CSV/Excel Olarak İndir",
+                data=csv_data,
+                file_name=f"LGS_Rapor_{date.today().strftime('%Y_%m_%d')}.csv",
+                mime="text/csv",
+                type="primary"
+            )
