@@ -4,6 +4,16 @@ import pandas as pd
 from datetime import date
 import time
 from PIL import Image
+
+# --- STREAMLIT COMPATIBILITY PATCH (DRAWABLE CANVAS FIX) ---
+try:
+    import streamlit.elements.image as st_image
+    if not hasattr(st_image, "image_to_url"):
+        from streamlit.elements.lib.image_utils import image_to_url
+        st_image.image_to_url = image_to_url
+except Exception:
+    pass
+
 try:
     from streamlit_drawable_canvas import st_canvas
 except ImportError:
