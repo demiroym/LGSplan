@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import date, datetime
+from datetime import date
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="LGS 7/8 Çalışma & Veli Takip", page_icon="🎓", layout="wide")
@@ -23,10 +23,9 @@ c.execute('''CREATE TABLE IF NOT EXISTS gunluk_takip (
 conn.commit()
 
 # --- USER AUTHENTICATION ---
-# Şifreleri buradan değiştirebilirsiniz
 USERS = {
-    "ogrenci": {"password": "123", "role": "Öğrenci", "name": "Öğrenci Paneli"},
-    "veli": {"password": "456", "role": "Veli", "name": "Veli Paneli"}
+    "ogrenci": {"password": "123", "role": "Öğrenci"},
+    "veli": {"password": "456", "role": "Veli"}
 }
 
 if "logged_in" not in st.session_state:
@@ -38,9 +37,9 @@ def login_screen():
     st.title("🎓 LGS Çalışma ve Veli Takip Sistemi")
     st.subheader("Giriş Yap")
     
-    col1, col2 = st.columns([1, 2])
+    col1, _ = st.columns([1, 2])
     with col1:
-        username = st.selectbox("Kullanıcı Rolü", ["ogrenci", "veli"], format_func=lambda x: "Öğrenci Girişi" if x=="ogrenci" else "Veli Girişi")
+        username = st.selectbox("Kullanıcı Rolü", ["ogrenci", "veli"], format_func=lambda x: "Öğrenci Girişi" if x == "ogrenci" else "Veli Girişi")
         password = st.text_input("Şifre", type="password")
         
         if st.button("Giriş Yap", type="primary"):
@@ -64,10 +63,15 @@ if st.sidebar.button("Çıkış Yap"):
 
 st.title("📚 LGS Hazırlık & Disiplin Takip Paneli")
 
-# Tarih Seçimi
+# Tarih ve Gün Bilgisi
 secilen_tarih = st.date_input("Takip Tarihi", date.today())
 tarih_str = secilen_tarih.strftime("%Y-%m-%d")
-gun_adi = secilen_tarih.strftime("%A")
+
+gunler_tr = {
+    0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 
+    3: "Perşembe", 4: "Cuma", 5: "Cumartesi", 6: "Pazar"
+}
+gun_adi = gunler_tr[secilen_tarih.weekday()]
 
 # --- SABİT PROGRAM BİLGİLENDİRMESİ ---
 st.info(f"📅 **Günün Programı ({gun_adi}):**")
@@ -94,7 +98,7 @@ tab1, tab2, tab3 = st.tabs(["📝 Günlük Görevler & Giriş", "🛡️ Veli On
 # TAB 1: ÖĞRENCİ PANELİ
 # ==========================================
 with tab1:
-    st.header("Günlük Görev Listesi ve Tikler")
+    st.header("Günlük Görev Listesi")
     
     c.execute("SELECT gorev, durum FROM gunluk_takip WHERE tarih=?", (tarih_str,))
     mevcut_kayitlar = dict(c.fetchall())
@@ -102,21 +106,21 @@ with tab1:
     yeni_durumlar = {}
     for g in varsayilan_gorevler:
         varsayilan_val = bool(mevcut_kayitlar.get(g, 0))
-        yeni_durumlar[g] = st.checkbox(g, value=varsayilan_val, disabled=(st.session_state["user_role"]=="Veli"))
+        yeni_durumlar[g] = st.checkbox(g, value=varsayilan_val, disabled=(st.session_state["user_role"] == "Veli"))
     
     st.divider()
     st.subheader("📈 Günlük Soru ve Sayfa Sayıları")
     
     c.execute("SELECT soru_sayisi, okunan_sayfa FROM gunluk_takip WHERE tarih=? LIMIT 1", (tarih_str,))
     row = c.fetchone()
-    mevcut_soru = row[0] if row and row[0] else 0
-    mevcut_sayfa = row[1] if row and row[1] else 0
+    mevcut_soru = row[0] if row and row[0] is not None else 0
+    mevcut_sayfa = row[1] if row and row[1] is not None else 0
     
     col_s1, col_s2 = st.columns(2)
     with col_s1:
-        soru_sayisi = st.number_input("Bugün Çözülen Toplam Soru Sayısı", min_value=0, value=mevcut_soru, step=5, disabled=(st.session_state["user_role"]=="Veli"))
+        soru_sayisi = st.number_input("Bugün Çözülen Toplam Soru Sayısı", min_value=0, value=mevcut_soru, step=5, disabled=(st.session_state["user_role"] == "Veli"))
     with col_s2:
-        okunan_sayfa = st.number_input("Bugün Okunan Kitap Sayfası", min_value=0, value=mevcut_sayfa, step=5, disabled=(st.session_state["user_role"]=="Veli"))
+        okunan_sayfa = st.number_input("Bugün Okunan Kitap Sayfası", min_value=0, value=mevcut_sayfa, step=5, disabled=(st.session_state["user_role"] == "Veli"))
 
     if st.session_state["user_role"] == "Öğrenci":
         if st.button("Kaydet ve Gönder", type="primary"):
@@ -137,8 +141,8 @@ with tab2:
     
     c.execute("SELECT veli_onay, veli_notu FROM gunluk_takip WHERE tarih=? LIMIT 1", (tarih_str,))
     v_row = c.fetchone()
-    mevcut_onay = bool(v_row[0]) if v_row and v_row[0] else False
-    mevcut_not = v_row[1] if v_row and v_row[1] else ""
+    mevcut_onay = bool(v_row[0]) if v_row and v_row[0] is not None else False
+    mevcut_not = v_row[1] if v_row and v_row[1] is not None else ""
     
     if mevcut_onay:
         st.success("✅ Bu günün çalışmaları Veli tarafından onaylandı!")
@@ -170,11 +174,16 @@ with tab3:
     df = pd.read_sql_query("SELECT * FROM gunluk_takip", conn)
     
     if not df.empty:
+        df_gunluk = df.groupby('tarih').agg({
+            'soru_sayisi': 'max',
+            'okunan_sayfa': 'max'
+        }).reset_index()
+
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
-            st.metric("Toplam Çözülen Soru", f"{df.groupby('tarih')['soru_sayisi'].max().sum()} Soru")
+            st.metric("Toplam Çözülen Soru", f"{df_gunluk['soru_sayisi'].sum()} Soru")
         with col_m2:
-            st.metric("Toplam Okunan Sayfa", f"{df.groupby('tarih')['okunan_sayfa'].max().sum()} Sayfa")
+            st.metric("Toplam Okunan Sayfa", f"{df_gunluk['okunan_sayfa'].sum()} Sayfa")
         with col_m3:
             tamamlanan = df['durum'].sum()
             toplam_g = len(df)
@@ -183,7 +192,6 @@ with tab3:
 
         st.divider()
         st.subheader("Günlere Göre Soru Çözüm Grafiği")
-        df_soru = df.groupby('tarih')['soru_sayisi'].max().reset_index()
-        st.bar_chart(df_soru.set_index('tarih'))
+        st.bar_chart(df_gunluk.set_index('tarih')['soru_sayisi'])
     else:
-        st.write("Henüz analiz gösterilecek veri girişi yapılmadı.")
+        st.info("Henüz analiz gösterilecek veri girişi yapılmadı.")
