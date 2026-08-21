@@ -1,8 +1,13 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import date, datetime
+from datetime import date
 import time
+from PIL import Image
+try:
+    from streamlit_drawable_canvas import st_canvas
+except ImportError:
+    st_canvas = None
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -192,7 +197,6 @@ if not st.session_state["logged_in"]:
 # --- SIDEBAR & BANNER ---
 st.sidebar.markdown(f"### 👤 Rol: **{st.session_state['user_role']}**")
 
-# LGS Geri Sayım Hesaplayıcı (Tahmini Haziranda LGS)
 lgs_tarihi = date(2027, 6, 6) if date.today().year == 2026 and date.today().month > 6 else date(date.today().year + (1 if date.today().month > 6 else 0), 6, 7)
 kalan_gun = (lgs_tarihi - date.today()).days
 
@@ -212,9 +216,10 @@ st.markdown(f'''
 ''', unsafe_allow_html=True)
 
 # TABS DEFINITION
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📝 Günlük Görev & Soru", 
     "📝 Denemeler & LGS Puanı",
+    "🎨 Beyaz Tahta & Soru Çözümü",
     "📕 Yanlış Defteri",
     "🎯 Müfredat Takibi",
     "🏆 Puan & Rozetler",
@@ -230,7 +235,6 @@ with tab1:
     secilen_tarih = st.date_input("📅 Takip Tarihi Seçin", date.today())
     tarih_str = secilen_tarih.strftime("%Y-%m-%d")
 
-    # Günlük Hedef Çubuğu
     gunluk_hedef = st.number_input("🎯 Günlük Soru Hedefi", min_value=50, max_value=500, value=150, step=10)
 
     st.subheader("📊 Ders Bazlı Soru Çözümü & Net Takibi")
@@ -248,7 +252,6 @@ with tab1:
             st.caption(f"📈 Net: **{net}**")
             soru_verileri[ders] = (d, y, b, net)
 
-    # Hedef Bar
     hedef_yuzde = min(1.0, toplam_cozuldu / gunluk_hedef)
     st.markdown(f"**Günlük Hedef İlerlemesi ({toplam_cozuldu} / {gunluk_hedef} Soru)**")
     st.progress(hedef_yuzde)
@@ -320,9 +323,50 @@ with tab2:
             st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
 
 # ==========================================
-# TAB 3: YANLIŞ DEFTERİ (HATALI SORU BANKASI)
+# TAB 3: BEYAZ TAHTA & SORU ÇÖZÜMÜ (CANVAS)
 # ==========================================
 with tab3:
+    st.subheader("🎨 Etkileşimli Beyaz Tahta & Soru Çözüm Paneli")
+    st.caption("Fırça/kalem yardımıyla boş tahtada çizim yapabilir veya soru resmi yükleyip üzerine çözüm yapabilirsiniz.")
+
+    if st_canvas is None:
+        st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
+    else:
+        tahta_modu = st.radio("Tahta Modu Seçin:", ["⚪ Boş Beyaz Tahta", "🖼️ Soru Yükle ve Çöz"], horizontal=True)
+
+        col_c1, col_c2 = st.columns([1, 4])
+
+        with col_c1:
+            st.markdown("#### ✏️ Kalem Ayarları")
+            drawing_mode = st.selectbox("Çizim Aracı:", ["freedraw", "line", "rect", "circle", "transform"])
+            stroke_width = st.slider("Kalem Kalınlığı:", 1, 25, 3)
+            stroke_color = st.color_picker("Kalem / Yazı Rengi:", "#1E40AF")
+            bg_color = "#FFFFFF"
+
+            bg_image = None
+            if tahta_modu == "🖼️ Soru Yükle ve Çöz":
+                uploaded_file = st.file_uploader("Soru Görseli Yükleyin (PNG/JPG):", type=["png", "jpg", "jpeg"])
+                if uploaded_file is not None:
+                    bg_image = Image.open(uploaded_file)
+
+        with col_c2:
+            canvas_result = st_canvas(
+                fill_color="rgba(255, 165, 0, 0.3)",
+                stroke_width=stroke_width,
+                stroke_color=stroke_color,
+                background_color=bg_color,
+                background_image=bg_image,
+                update_streamlit=True,
+                height=550,
+                width=750,
+                drawing_mode=drawing_mode,
+                key="lgs_canvas",
+            )
+
+# ==========================================
+# TAB 4: YANLIŞ DEFTERİ
+# ==========================================
+with tab4:
     st.subheader("📕 Yanlış Defteri & Zorlanılan Sorular")
     st.caption("Denemelerde ve testlerde yapamadığınız soruları buraya kaydedip tekrar inceleyin.")
 
@@ -337,7 +381,7 @@ with tab3:
                 c.execute("INSERT INTO yanlis_defteri (tarih, ders, konu, soru_notu, cozuldu) VALUES (?, ?, ?, ?, 0)",
                           (date.today().strftime("%Y-%m-%d"), y_ders, y_konu, y_not))
                 conn.commit()
-            st.success("Hatalı soru defterinize eklendi! Tekrar etmeyi unutmayın.")
+            st.success("Hatalı soru defterinize eklendi!")
 
     st.divider()
     st.subheader("📋 Kayıtlı Hatalı Sorularınız")
@@ -349,9 +393,9 @@ with tab3:
             st.info("Harika! Yanlış defteriniz boş veya tüm sorular çözüldü! 🎉")
 
 # ==========================================
-# TAB 4: MÜFREDAT TAKİBİ
+# TAB 5: MÜFREDAT TAKİBİ
 # ==========================================
-with tab4:
+with tab5:
     st.subheader("🎯 LGS Konu ve Müfredat Takip Paneli")
     secilen_ders_konu = st.selectbox("Ders Seçin", DERSLER, key="mufredat_ders")
     konular = VARSAYILAN_KONULAR[secilen_ders_konu]
@@ -367,11 +411,10 @@ with tab4:
     st.caption(f"Müfredat Tamamlanma: **%{yuzde}** ({tamamlanan_sayisi}/{len(konular)} Konu)")
 
 # ==========================================
-# TAB 5: ROZET VE PUAN SİSTEMİ (OYUNLAŞTIRMA)
+# TAB 6: ROZET VE PUAN SİSTEMİ
 # ==========================================
-with tab5:
+with tab6:
     st.subheader("🏆 Puan Paneli & Başarı Rozetleri")
-    
     toplam_s = 0
     toplam_sayfa = 0
     if not USE_SUPABASE:
@@ -418,9 +461,9 @@ with tab5:
         ''', unsafe_allow_html=True)
 
 # ==========================================
-# TAB 6: POMODORO ZAMANLAYICI
+# TAB 7: POMODORO ZAMANLAYICI
 # ==========================================
-with tab6:
+with tab7:
     st.subheader("⏱️ Odaklanma Zamanlayıcısı (Pomodoro)")
     col_p1, col_p2 = st.columns(2)
     with col_p1:
@@ -459,9 +502,9 @@ with tab6:
             st.success("🎉 Süre bitti! Şimdi harika bir molayı hak ettin!")
 
 # ==========================================
-# TAB 7: VELİ ONAY PANELİ
+# TAB 8: VELİ ONAY PANELİ
 # ==========================================
-with tab7:
+with tab8:
     st.subheader("🛡️ Veli Kontrolü ve Onay Paneli")
     mevcut_onay = False
     mevcut_not = ""
@@ -494,9 +537,9 @@ with tab7:
             st.rerun()
 
 # ==========================================
-# TAB 8: AKILLI KOÇLUK & RAPOR İNDİRME
+# TAB 9: AKILLI KOÇLUK & RAPOR İNDİRME
 # ==========================================
-with tab8:
+with tab9:
     st.subheader("🤖 Yapay Zeka / Akıllı LGS Koçluk Tavsiyeleri")
     
     if not USE_SUPABASE:
