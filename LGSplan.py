@@ -294,8 +294,12 @@ with tab2:
         netler = {}
         for i, ders in enumerate(DERSLER):
             with d_cols[i % 3]:
-                d = st.number_input(f"{ders} D", min_value=0, max_value=20 if ders in ["Türkçe","Matematik","Fen"] else 10, value=15, key=f"den_{ders}_d")
-                y = st.number_input(f"{ders} Y", min_value=0, max_value=20, value=3, key=f"den_{ders}_y")
+                # 20 soruluk dersler için varsayılan 15, 10 soruluk dersler için varsayılan 8 olarak ayarlandı
+                max_soru = 20 if ders in ["Türkçe", "Matematik", "Fen"] else 10
+                varsayilan_d = 15 if max_soru == 20 else 8
+                
+                d = st.number_input(f"{ders} D", min_value=0, max_value=max_soru, value=varsayilan_d, key=f"den_{ders}_d")
+                y = st.number_input(f"{ders} Y", min_value=0, max_value=max_soru, value=2, key=f"den_{ders}_y")
                 net = max(0.0, round(d - (y / 3.0), 2))
                 netler[ders] = net
                 st.caption(f"{ders} Net: **{net}**")
