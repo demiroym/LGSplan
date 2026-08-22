@@ -341,27 +341,20 @@ with tab3:
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
-        # 1. CANVAS'IN SAYFA İLK AÇILDIĞINDA GİZLENMESİNİ ENGELEYEN CSS
+        # Tahtanın gizlenmesini engelleyen ve Tam Ekran durumunu yöneten CSS
         st.markdown("""
             <style>
-            /* Streamlit iframe ve canvas alanının boyutunun 0px olmasını engeller */
-            div[data-testid="stCustomComponentV1"] {
-                display: block !important;
-                visibility: visible !important;
-                width: 100% !important;
-                min-height: 550px !important;
-            }
+            div[data-testid="stCustomComponentV1"],
             iframe[title="streamlit_drawable_canvas.st_canvas"] {
                 display: block !important;
                 visibility: visible !important;
                 width: 100% !important;
-                min-height: 550px !important;
             }
             </style>
         """, unsafe_allow_html=True)
 
-        # Üst Araç Çubuğu (Kompakt Ayarlar)
-        col_tool1, col_tool2, col_tool3, col_tool4 = st.columns([2, 1, 1, 1])
+        # Üst Araç Çubuğu (Kompakt Ayarlar + Tam Ekran Butonu)
+        col_tool1, col_tool2, col_tool3, col_tool4, col_tool5 = st.columns([2, 1, 1, 1, 1])
         
         with col_tool1:
             mode_option = st.selectbox(
@@ -387,7 +380,34 @@ with tab3:
         with col_tool4:
             bg_color = st.color_picker("🖼️ Arka Plan:", "#FFFFFF")
 
+        with col_tool5:
+            st.write("") # Dikey hizalama için boşluk
+            st.write("")
+            is_fullscreen = st.checkbox("🖥️ Tam Ekran", value=False)
+
         st.divider()
+
+        # Tam Ekran Seçimine Göre Boyutlandırma
+        if is_fullscreen:
+            st.markdown("""
+                <style>
+                iframe[title="streamlit_drawable_canvas.st_canvas"] {
+                    height: 85vh !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            canvas_width = 1200
+            canvas_height = 800
+        else:
+            st.markdown("""
+                <style>
+                iframe[title="streamlit_drawable_canvas.st_canvas"] {
+                    height: 550px !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            canvas_width = 700
+            canvas_height = 550
 
         # Çizim Tuvali
         canvas_result = st_canvas(
@@ -396,8 +416,8 @@ with tab3:
             stroke_color=stroke_color,
             background_color=bg_color,
             update_streamlit=True,
-            width=700,
-            height=550,
+            width=canvas_width,
+            height=canvas_height,
             drawing_mode=drawing_mode,
             key="canvas_visible_always",
         )
