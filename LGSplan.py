@@ -336,27 +336,32 @@ with tab2:
 # TAB 3: BEYAZ TAHTA & SORU ÇÖZÜMÜ (CANVAS)
 # ==========================================
 with tab3:
-    st.subheader("🎨 Etkileşimli Beyaz Tahta & Soru Çözüm Paneli")
-    st.caption("Fırça/kalem yardımıyla boş tahtada çizim yapabilir veya soru resmi yükleyip üzerine çözüm yapabilirsiniz.")
+    st.subheader("🎨 Etkileşimli Beyaz Tahta & Soru Bankası Çözüm Paneli")
+    st.caption("Çoklu soru yükleyip sırayla çözebilir veya boş tahtada serbest çizim yapabilirsiniz.")
 
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
-        # MOD SEÇİMİ (Boş Tahta veya Soru Yükleme)
+        # Session State Hazırlıkları
+        if "soru_listesi" not in st.session_state:
+            st.session_state["soru_listesi"] = []
+        if "aktif_soru_idx" not in st.session_state:
+            st.session_state["aktif_soru_idx"] = 0
+
         tahta_modu = st.radio(
-            "📌 Tahta Kullanım Modu Seçin:",
-            ["⚪ Boş Beyaz Tahta", "🖼️ Soru Yükle ve Çöz"],
+            "📌 Kullanım Modu Seçin:",
+            ["⚪ Boş Beyaz Tahta", "📚 Soru Yükle & Test Çöz"],
             horizontal=True,
-            key="canvas_mode_radio"
+            key="tahta_modu_radio"
         )
 
         col_c1, col_c2 = st.columns([1, 3])
 
         with col_c1:
-            st.markdown("#### ⚙️ Kalem & Tuval Ayarları")
+            st.markdown("#### ⚙️ Kalem & Araç Ayarları")
             
             mode_option = st.selectbox(
-                "🖌️ Araç Seçin:",
+                "🖌️ Çizim Aracı:",
                 ["Kalem (Serbest Çizim)", "Düz Çizgi", "Dikdörtgen", "Daire", "Seç / Taşı"],
                 index=0
             )
@@ -370,73 +375,116 @@ with tab3:
             }
             drawing_mode = mode_map[mode_option]
 
-            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 25, 4)
+            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 25, 3)
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
-            bg_color = st.color_picker("🖼️ Tahta Arka Plan Rengi:", "#FFFFFF")
+            bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
-            bg_image = None
-            canvas_width = 750
-            canvas_height = 550
-
-            if tahta_modu == "🖼️ Soru Yükle ve Çöz":
+            # SORU YÜKLEME BÖLÜMÜ
+            if tahta_modu == "📚 Soru Yükle & Test Çöz":
                 st.divider()
-                st.markdown("#### 🖼️ Soru Yükle")
-                uploaded_file = st.file_uploader(
-                    "Soru Görseli Seçin (PNG, JPG):", 
+                st.markdown("#### 📥 Soru Bankası Yükle")
+                
+                secilen_ders = st.selectbox("Ders Seçin:", DERSLER, key="canvas_ders_secim")
+                secilen_konu = st.text_input("Konu Adı (Opsiyonel):", "Örn: Üslü İfadeler Test 1", key="canvas_konu_secim")
+                
+                uploaded_files = st.file_uploader(
+                    "Çoklu Soru Görselleri Seçin (PNG, JPG):", 
                     type=["png", "jpg", "jpeg"],
-                    key="question_uploader"
+                    accept_multiple_files=True,
+                    key="question_multi_uploader"
                 )
                 
-                if uploaded_file is not None:
-                    try:
-                        img = Image.open(uploaded_file).convert("RGBA")
-                        # Tuvala tam sığması için maksimum genişliği 750px olarak ölçeklendiriyoruz
-                        max_w = 750
-                        w_percent = (max_w / float(img.size[0]))
-                        h_size = int((float(img.size[1]) * float(w_percent)))
-                        img = img.resize((max_w, h_size), Image.Resampling.LANCZOS)
-                        
-                        bg_image = img
-                        canvas_width = max_w
-                        canvas_height = h_size
-                        st.success("✅ Soru yüklendi, hemen çizime başlayabilirsiniz!")
-                    except Exception as e:
-                        st.error(f"Görsel işlenirken hata oluştu: {e}")
+                if st.button("🚀 Soruları Tahtaya Aktar", type="primary"):
+                    if uploaded_files:
+                        st.session_state["soru_listesi"] = uploaded_files
+                        st.session_state["aktif_soru_idx"] = 0
+                        st.success(f"✅ Toplam {len(uploaded_files)} soru başarıyla yüklendi!")
+                    else:
+                        st.warning("Lütfen en az bir resim dosyası seçin.")
 
         with col_c2:
+            bg_image = None
+            canvas_width = 750
+            canvas_height = 500
+
+            # Soru Yükleme Modu Aktifse Resim Hazırlama
+            if tahta_modu == "📚 Soru Yükle & Test Çöz" and st.session_state["soru_listesi"]:
+                toplam_soru = len(st.session_state["soru_listesi"])
+                m_idx = st.session_state["aktif_soru_idx"]
+                
+                # Soru Gezinti Butonları
+                col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
+                with col_nav1:
+                    if st.button("⬅️ Önceki Soru", disabled=(m_idx == 0)):
+                        st.session_state["aktif_soru_idx"] -= 1
+                        st.rerun()
+                with col_nav2:
+                    st.markdown(f"<h4 style='text-align: center;'>Soru {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
+                with col_nav3:
+                    if st.button("İleri Soru ➡️", disabled=(m_idx == toplam_soru - 1)):
+                        st.session_state["aktif_soru_idx"] += 1
+                        st.rerun()
+
+                # Aktif Resmin İşlenmesi
+                curr_file = st.session_state["soru_listesi"][m_idx]
+                try:
+                    img = Image.open(curr_file).convert("RGBA")
+                    # Görüntünün en-boy oranını bozmadan tuval boyutuna ölçekleme
+                    max_w, max_h = 750, 500
+                    img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
+                    
+                    # Beyaz bir arka plan tuvali oluşturup resmi ortalama
+                    canvas_bg = Image.new("RGBA", (max_w, max_h), (255, 255, 255, 255))
+                    offset = ((max_w - img.width) // 2, (max_h - img.height) // 2)
+                    canvas_bg.paste(img, offset, img if img.mode == 'RGBA' else None)
+                    
+                    bg_image = canvas_bg
+                except Exception as e:
+                    st.error(f"Görsel yüklenirken hata oluştu: {e}")
+
+            # DİNAMİK KEY SİSTEMİ (Resim/Soru değiştikçe veya silme işleminde tuval yenilenir)
+            if tahta_modu == "⚪ Boş Beyaz Tahta":
+                c_key = "canvas_empty_board"
+            else:
+                c_key = f"canvas_question_{st.session_state['aktif_soru_idx']}"
+
             st.markdown(f"**✏️ Çizim Alanı ({tahta_modu})**")
-            
-            # Key seçeneğini moda göre dinamik veriyoruz ki mod değiştiğinde tuval temizleşsin
-            canvas_key = "canvas_empty" if tahta_modu == "⚪ Boş Beyaz Tahta" else "canvas_question"
 
             canvas_result = st_canvas(
                 fill_color="rgba(255, 165, 0, 0.2)",
                 stroke_width=stroke_width,
                 stroke_color=stroke_color,
-                background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" or bg_image is None else None,
-                background_image=bg_image if tahta_modu == "🖼️ Soru Yükle ve Çöz" else None,
+                background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" else None,
+                background_image=bg_image if tahta_modu == "📚 Soru Yükle & Test Çöz" else None,
                 update_streamlit=True,
                 height=canvas_height,
                 width=canvas_width,
                 drawing_mode=drawing_mode,
-                key=canvas_key,
+                key=c_key,
             )
 
-            # ÇÖZÜMÜ İNDİRME BUTONU
-            if canvas_result is not None and canvas_result.image_data is not None:
-                res_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-                import io
-                buf = io.BytesIO()
-                res_img.save(buf, format="PNG")
-                byte_im = buf.getvalue()
-                
-                st.download_button(
-                    label="💾 Çözümü / Çizimi Bilgisayara İndir (PNG)",
-                    data=byte_im,
-                    file_name=f"LGS_Cozum_{date.today().strftime('%Y%m%d')}.png",
-                    mime="image/png",
-                    type="primary"
-                )
+            # ÇİZİM TEMİZLEME VE İNDİRME ARAÇLARI
+            st.caption("💡 **Not:** Çizimi geri almak veya silmek için klavyenizden `Ctrl + Z` yapabilir veya aşağıdaki butonları kullanabilirsiniz.")
+            
+            col_act1, col_act2 = st.columns(2)
+            with col_act1:
+                if st.button("🗑️ Çizimleri Temizle / Sıfırla"):
+                    st.rerun()
+
+            with col_act2:
+                if canvas_result is not None and canvas_result.image_data is not None:
+                    res_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                    import io
+                    buf = io.BytesIO()
+                    res_img.save(buf, format="PNG")
+                    byte_im = buf.getvalue()
+                    
+                    st.download_button(
+                        label="💾 Çözümü Bilgisayara İndir (PNG)",
+                        data=byte_im,
+                        file_name=f"LGS_Soru_Cozum_{date.today().strftime('%Y%m%d')}.png",
+                        mime="image/png"
+                    )
 # ==========================================
 # TAB 4: YANLIŞ DEFTERİ
 # ==========================================
