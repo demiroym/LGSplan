@@ -333,7 +333,7 @@ with tab2:
             st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
 
 # ==========================================
-# TAB 3: BEYAZ TAHTA & SORU ÇÖZÜMÜ (CANVAS)
+# TAB 3: BEYAZ TAHTA & SORU / PDF ÇÖZÜMÜ
 # ==========================================
 with tab3:
     st.subheader("🎨 Etkileşimli Beyaz Tahta & PDF / Görsel Soru Çözüm Paneli")
@@ -374,7 +374,7 @@ with tab3:
             }
             drawing_mode = mode_map[mode_option]
 
-            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 25, 3)
+            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 25, 4)
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
             bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
@@ -402,25 +402,14 @@ with tab3:
                                         pdf = pdfium.PdfDocument(file)
                                         for i in range(len(pdf)):
                                             page = pdf[i]
-                                            # Ölçekleme ve Tuval Boyutuna Sığdırma (750x550)
-                                            pil_img = page.render(scale=1.5).to_pil().convert("RGBA")
-                                            pil_img.thumbnail((750, 550), Image.Resampling.LANCZOS)
-                                            
-                                            canvas_bg = Image.new("RGBA", (750, 550), (255, 255, 255, 255))
-                                            offset = ((750 - pil_img.width) // 2, (550 - pil_img.height) // 2)
-                                            canvas_bg.paste(pil_img, offset, pil_img)
-                                            islenen_resimler.append(canvas_bg)
+                                            pil_img = page.render(scale=2).to_pil().convert("RGBA")
+                                            islenen_resimler.append(pil_img)
                                     except Exception as e:
-                                        st.error(f"PDF işlenirken hata oluştu: {e}")
+                                        st.error(f"PDF okunurken hata oluştu: {e}")
                                 else:
                                     try:
                                         pil_img = Image.open(file).convert("RGBA")
-                                        pil_img.thumbnail((750, 550), Image.Resampling.LANCZOS)
-                                        
-                                        canvas_bg = Image.new("RGBA", (750, 550), (255, 255, 255, 255))
-                                        offset = ((750 - pil_img.width) // 2, (550 - pil_img.height) // 2)
-                                        canvas_bg.paste(pil_img, offset, pil_img)
-                                        islenen_resimler.append(canvas_bg)
+                                        islenen_resimler.append(pil_img)
                                     except Exception as e:
                                         st.error(f"Görsel açılamadı: {e}")
                         
@@ -451,7 +440,17 @@ with tab3:
                         st.session_state["aktif_soru_idx"] += 1
                         st.rerun()
 
-                bg_image = st.session_state["soru_listesi_bytes"][m_idx]
+                # Aktif görseli hazırla
+                current_pil_img = st.session_state["soru_listesi_bytes"][m_idx]
+                
+                # Görsel boyutunu canvas ölçeğine (750px genişlik) göre ayarla
+                w, h = current_pil_img.size
+                canvas_width = 750
+                canvas_height = int(h * (canvas_width / float(w)))
+
+                # Görseli göster
+                st.image(current_pil_img, use_container_width=True)
+                st.caption("👇 Aşağıdaki şeffaf çizim alanını kullanarak yukarıdaki sorunun/sayfanın üzerine veya altına çözümü yapabilirsiniz:")
 
             c_key = "canvas_empty" if tahta_modu == "⚪ Boş Beyaz Tahta" else f"canvas_pdf_page_{st.session_state['aktif_soru_idx']}"
 
@@ -461,8 +460,7 @@ with tab3:
                 fill_color="rgba(255, 165, 0, 0.2)",
                 stroke_width=stroke_width,
                 stroke_color=stroke_color,
-                background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" else None,
-                background_image=bg_image if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" else None,
+                background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" else "rgba(0, 0, 0, 0)",
                 update_streamlit=True,
                 height=canvas_height,
                 width=canvas_width,
@@ -470,25 +468,34 @@ with tab3:
                 key=c_key,
             )
 
-            st.caption("💡 **İpucu:** Çizimi geri almak için klavyenizden `Ctrl + Z` tuşlarına basabilir veya 'Temizle' butonunu kullanabilirsiniz.")
+            st.caption("💡 **İpucu:** Çizimi geri almak için klavyenizden `Ctrl + Z` yapabilir veya aşağıdaki temizle butonunu kullanabilirsiniz.")
             
             col_act1, col_act2 = st.columns(2)
             with col_act1:
-                if st.button("🗑️ Sayfadaki Çizimleri Temizle"):
+                if st.button("🗑️ Çizimleri Temizle / Sıfırla"):
                     st.rerun()
 
             with col_act2:
                 if canvas_result is not None and canvas_result.image_data is not None:
-                    res_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                    # Çizim ile arka planı birleştirme işlemi
+                    draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                    
+                    if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
+                        base_img = st.session_state["soru_listesi_bytes"][st.session_state["aktif_soru_idx"]].copy()
+                        base_img = base_img.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
+                        final_img = Image.alpha_composite(base_img.convert("RGBA"), draw_img)
+                    else:
+                        final_img = draw_img
+
                     import io
                     buf = io.BytesIO()
-                    res_img.save(buf, format="PNG")
+                    final_img.save(buf, format="PNG")
                     byte_im = buf.getvalue()
                     
                     st.download_button(
-                        label="💾 Çözümlü Sayfayı İndir (PNG)",
+                        label="💾 Çözümlü Görseli İndir (PNG)",
                         data=byte_im,
-                        file_name=f"LGS_Cozum_Sayfa_{st.session_state['aktif_soru_idx']+1}.png",
+                        file_name=f"LGS_Cozum_{st.session_state['aktif_soru_idx']+1}.png",
                         mime="image/png"
                     )
 # ==========================================
