@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 import time
 from PIL import Image
 
@@ -342,7 +342,6 @@ with tab3:
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
-        # Session State Hazırlıkları
         if "soru_listesi_bytes" not in st.session_state:
             st.session_state["soru_listesi_bytes"] = []
         if "aktif_soru_idx" not in st.session_state:
@@ -383,17 +382,12 @@ with tab3:
                 st.divider()
                 st.markdown("#### 🔍 Görsel Büyütme (Zoom)")
                 zoom_scale = st.slider("🔎 Görsel Zoom Seviyesi:", min_value=1.0, max_value=3.0, value=1.0, step=0.1, format="%.1fx")
-                st.caption("💡 *Fare tekerleği (`Ctrl + Scroll`) ile de görsel üzerinde yakınlaşma yapabilirsiniz.*")
 
                 st.divider()
                 st.markdown("#### 🎯 Yanlış Soruları Çağır")
                 if st.button("📥 Yanlış Soru Defterinden Aktar", use_container_width=True):
-                    # Python if blogunun altındaki kodların 4 boşluk içeride olması gerekir:
                     if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
-                        aktarilanlar = []
-                        for ys in st.session_state["yanlis_sorular"]:
-                            if isinstance(ys, dict) and ys.get("gorsel") is not None:
-                                aktarilanlar.append(ys["gorsel"])
+                        aktarilanlar = [ys["gorsel"] for ys in st.session_state["yanlis_sorular"] if isinstance(ys, dict) and ys.get("gorsel") is not None]
                         
                         if aktarilanlar:
                             st.session_state["soru_listesi_bytes"] = aktarilanlar
@@ -449,7 +443,6 @@ with tab3:
                 toplam_soru = len(st.session_state["soru_listesi_bytes"])
                 m_idx = st.session_state["aktif_soru_idx"]
                 
-                # Gezinti Çubuğu
                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                 with col_nav1:
                     if st.button("⬅️ Önceki Sayfa/Soru", disabled=(m_idx == 0)):
@@ -464,17 +457,14 @@ with tab3:
 
                 current_pil_img = st.session_state["soru_listesi_bytes"][m_idx]
 
-                # Görseli sabit tuval boyutuna (750x550) sığdırma
                 canvas_w, canvas_h = 750, 550
                 w_orig, h_orig = current_pil_img.size
                 
-                # Zoom uygula
                 new_w = int(canvas_w * zoom_scale)
                 new_h = int(h_orig * (new_w / float(w_orig)))
                 
                 resized_img = current_pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
-                # Tuval Arka Planına Görsel İşleme
                 canvas_bg = Image.new("RGBA", (new_w, max(new_h, canvas_h)), (255, 255, 255, 255))
                 canvas_bg.paste(resized_img, (0, 0))
 
@@ -529,106 +519,103 @@ with tab3:
                     drawing_mode=drawing_mode,
                     key="canvas_empty_board",
                 )
+
 # ==========================================
-# YANLIŞ SORU DEFTERİ SEKMESİ
+# TAB 4: YANLIŞ SORU DEFTERİ
 # ==========================================
-st.subheader("📚 Yanlış Soru Defteri")
-st.caption("Çözmekte zorlandığınız veya yanlış yaptığınız soruları görseli, dersi, konusu ve notlarınızla birlikte kaydedin.")
+with tab4:
+    st.subheader("📚 Yanlış Soru Defteri")
+    st.caption("Çözmekte zorlandığınız veya yanlış yaptığınız soruları görseli, dersi, konusu ve notlarınızla birlikte kaydedin.")
 
-if "yanlis_sorular" not in st.session_state:
-    st.session_state["yanlis_sorular"] = []
+    if "yanlis_sorular" not in st.session_state:
+        st.session_state["yanlis_sorular"] = []
 
-# --- SORU EKLEME FORMU ---
-with st.expander("➕ Yeni Yanlış Soru Ekle", expanded=True):
-    col_ys1, col_ys2 = st.columns([1, 1])
-    
-    with col_ys1:
-        ys_ders = st.selectbox(
-            "📘 Ders Seçin:",
-            ["Türkçe", "Matematik", "Fen Bilimleri", "T.C. İnkılap Tarihi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi"]
-        )
-        ys_konu = st.text_input("📌 Konu Adı:", placeholder="Örn: Çarpanlar ve Katlar / Paragrafta Anlam")
-        ys_not = st.text_area("📝 Soru/Çözüm Açıklaması veya Notunuz:", placeholder="Bu soruda nerede hata yaptınız? Dikkat edilmesi gereken nokta nedir?")
-
-    with col_ys2:
-        ys_gorsel = st.file_uploader(
-            "📷 Soru Görseli veya PDF Dosyası Yükleyin:",
-            type=["png", "jpg", "jpeg", "pdf"],
-            key="ys_file_uploader_input"
-        )
+    with st.expander("➕ Yeni Yanlış Soru Ekle", expanded=True):
+        col_ys1, col_ys2 = st.columns([1, 1])
         
-        if ys_gorsel is not None:
-            file_ext = ys_gorsel.name.split('.')[-1].lower()
-            if file_ext in ["png", "jpg", "jpeg"]:
-                st.image(ys_gorsel, caption="Yüklenen Görsel Önizleme", use_container_width=True)
+        with col_ys1:
+            ys_ders = st.selectbox(
+                "📘 Ders Seçin:",
+                ["Türkçe", "Matematik", "Fen", "Sosyal", "İngilizce", "Din Kültürü"]
+            )
+            ys_konu = st.text_input("📌 Konu Adı:", placeholder="Örn: Çarpanlar ve Katlar / Paragrafta Anlam")
+            ys_not = st.text_area("📝 Soru/Çözüm Açıklaması veya Notunuz:", placeholder="Bu soruda nerede hata yaptınız? Dikkat edilmesi gereken nokta nedir?")
 
-    if st.button("💾 Yanlış Soru Defterine Kaydet", type="primary", use_container_width=True):
-        if ys_gorsel is None and not ys_konu:
-            st.warning("⚠️ Lütfen en az bir dosya (görsel/PDF) yükleyin veya konu adı belirtin.")
-        else:
-            # Dosyayı byte/PIL nesnesi olarak saklama hazırlığı
-            gorsel_veri = None
+        with col_ys2:
+            ys_gorsel = st.file_uploader(
+                "📷 Soru Görseli veya PDF Dosyası Yükleyin:",
+                type=["png", "jpg", "jpeg", "pdf"],
+                key="ys_file_uploader_input"
+            )
+            
             if ys_gorsel is not None:
                 file_ext = ys_gorsel.name.split('.')[-1].lower()
-                if file_ext == "pdf":
-                    try:
-                        import pypdfium2 as pdfium
-                        pdf = pdfium.PdfDocument(ys_gorsel)
-                        # İlk sayfayı resim olarak kaydet
-                        page = pdf[0]
-                        gorsel_veri = page.render(scale=2.0).to_pil().convert("RGBA")
-                    except Exception as e:
-                        st.error(f"PDF dönüştürülürken hata oluştu: {e}")
-                else:
-                    try:
-                        gorsel_veri = Image.open(ys_gorsel).convert("RGBA")
-                    except Exception as e:
-                        st.error(f"Görsel okunurken hata oluştu: {e}")
+                if file_ext in ["png", "jpg", "jpeg"]:
+                    st.image(ys_gorsel, caption="Yüklenen Görsel Önizleme", use_container_width=True)
 
-            yeni_kayit = {
-                "id": len(st.session_state["yanlis_sorular"]) + 1,
-                "ders": ys_ders,
-                "konu": ys_konu if ys_konu else "Belirtilmedi",
-                "not": ys_not if ys_not else "Not eklenmedi.",
-                "gorsel": gorsel_veri,
-                "tarih": datetime.now().strftime("%d.%m.%Y")
-            }
-            
-            st.session_state["yanlis_sorular"].append(yeni_kayit)
-            st.success("✅ Soru Yanlış Defterine başarıyla kaydedildi! Beyaz Tahta sekmesinden çağırıp kalemle çözebilirsiniz.")
-            st.rerun()
+        if st.button("💾 Yanlış Soru Defterine Kaydet", type="primary", use_container_width=True):
+            if ys_gorsel is None and not ys_konu:
+                st.warning("⚠️ Lütfen en az bir dosya (görsel/PDF) yükleyin veya konu adı belirtin.")
+            else:
+                gorsel_veri = None
+                if ys_gorsel is not None:
+                    file_ext = ys_gorsel.name.split('.')[-1].lower()
+                    if file_ext == "pdf":
+                        try:
+                            import pypdfium2 as pdfium
+                            pdf = pdfium.PdfDocument(ys_gorsel)
+                            page = pdf[0]
+                            gorsel_veri = page.render(scale=2.0).to_pil().convert("RGBA")
+                        except Exception as e:
+                            st.error(f"PDF dönüştürülürken hata oluştu: {e}")
+                    else:
+                        try:
+                            gorsel_veri = Image.open(ys_gorsel).convert("RGBA")
+                        except Exception as e:
+                            st.error(f"Görsel okunurken hata oluştu: {e}")
 
-st.divider()
-
-# --- KAYITLI YANLIŞ SORULARI LİSTELEME ---
-st.markdown("### 📖 Kayıtlı Yanlış Sorularınız")
-
-if not st.session_state["yanlis_sorular"]:
-    st.info("Henüz kaydedilmiş yanlış soru bulunmuyor. Yukarıdaki formu kullanarak ilk sorunuzu ekleyebilirsiniz.")
-else:
-    # Ders bazlı filtreleme
-    filtre_ders = st.selectbox("🔍 Derse Göre Filtrele:", ["Tümü"] + ["Türkçe", "Matematik", "Fen Bilimleri", "T.C. İnkılap Tarihi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi"])
-    
-    for idx, soru in enumerate(st.session_state["yanlis_sorular"]):
-        if filtre_ders != "Tümü" and soru["ders"] != filtre_ders:
-            continue
-            
-        with st.expander(f"📌 {soru['ders']} - {soru['konu']} (Tarih: {soru.get('tarih', '-')})", expanded=False):
-            col_d1, col_d2 = st.columns([1, 1])
-            with col_d1:
-                st.markdown(f"**📘 Ders:** {soru['ders']}")
-                st.markdown(f"**📌 Konu:** {soru['konu']}")
-                st.markdown(f"**📝 Not/Açıklama:** {soru['not']}")
+                yeni_kayit = {
+                    "id": len(st.session_state["yanlis_sorular"]) + 1,
+                    "ders": ys_ders,
+                    "konu": ys_konu if ys_konu else "Belirtilmedi",
+                    "not": ys_not if ys_not else "Not eklenmedi.",
+                    "gorsel": gorsel_veri,
+                    "tarih": datetime.now().strftime("%d.%m.%Y")
+                }
                 
-                if st.button(f"🗑️ Soruyu Sil", key=f"del_ys_{idx}"):
-                    st.session_state["yanlis_sorular"].pop(idx)
-                    st.rerun()
+                st.session_state["yanlis_sorular"].append(yeni_kayit)
+                st.success("✅ Soru Yanlış Defterine başarıyla kaydedildi! Beyaz Tahta sekmesinden çağırıp kalemle çözebilirsiniz.")
+                st.rerun()
+
+    st.divider()
+
+    st.markdown("### 📖 Kayıtlı Yanlış Sorularınız")
+
+    if not st.session_state["yanlis_sorular"]:
+        st.info("Henüz kaydedilmiş yanlış soru bulunmuyor. Yukarıdaki formu kullanarak ilk sorunuzu ekleyebilirsiniz.")
+    else:
+        filtre_ders = st.selectbox("🔍 Derse Göre Filtrele:", ["Tümü"] + DERSLER)
+        
+        for idx, soru in enumerate(st.session_state["yanlis_sorular"]):
+            if filtre_ders != "Tümü" and soru["ders"] != filtre_ders:
+                continue
+                
+            with st.expander(f"📌 {soru['ders']} - {soru['konu']} (Tarih: {soru.get('tarih', '-')})", expanded=False):
+                col_d1, col_d2 = st.columns([1, 1])
+                with col_d1:
+                    st.markdown(f"**📘 Ders:** {soru['ders']}")
+                    st.markdown(f"**📌 Konu:** {soru['konu']}")
+                    st.markdown(f"**📝 Not/Açıklama:** {soru['not']}")
                     
-            with col_d2:
-                if soru["gorsel"] is not None:
-                    st.image(soru["gorsel"], caption="Soru Görseli", use_container_width=True)
-                else:
-                    st.info("Bu kayıt için görsel yüklenmemiş.")
+                    if st.button(f"🗑️ Soruyu Sil", key=f"del_ys_{idx}"):
+                        st.session_state["yanlis_sorular"].pop(idx)
+                        st.rerun()
+                        
+                with col_d2:
+                    if soru["gorsel"] is not None:
+                        st.image(soru["gorsel"], caption="Soru Görseli", use_container_width=True)
+                    else:
+                        st.info("Bu kayıt için görsel yüklenmemiş.")
 
 # ==========================================
 # TAB 5: MÜFREDAT TAKİBİ
@@ -746,6 +733,7 @@ with tab8:
     st.subheader("🛡️ Veli Kontrolü ve Onay Paneli")
     mevcut_onay = False
     mevcut_not = ""
+    
     if not USE_SUPABASE:
         c.execute("SELECT veli_onay, veli_notu FROM gunluk_takip WHERE tarih=? LIMIT 1", (tarih_str,))
         v_row = c.fetchone()
@@ -762,43 +750,31 @@ with tab8:
 
     if st.session_state["user_role"] == "Veli":
         st.divider()
-        onay_kutusu = st.checkbox("Günü Onayla (Çalışmalar Tamamlandı)", value=mevcut_onay)
-        veli_notu_giris = st.text_area("Çocuğunuza Motivasyon / Değerlendirme Notu Ekle", value=mevcut_not)
-        
-        if st.button("✔ Veli Onayını Kaydet", type="primary"):
-            if not USE_SUPABASE:
-                c.execute("""INSERT INTO gunluk_takip (tarih, gorev, durum, veli_onay, veli_notu)
-                             VALUES (?, 'Genel', 1, ?, ?) ON CONFLICT(tarih, gorev) DO UPDATE SET veli_onay=excluded.veli_onay, veli_notu=excluded.veli_notu""",
-                          (tarih_str, int(onay_kutusu), veli_notu_giris))
-                conn.commit()
-            st.success("Veli onayı kaydedildi!")
-            st.rerun()
+        with st.form("veli_onay_form"):
+            onay_kutusu = st.checkbox("Günü Onayla (Çalışmalar Tamamlandı)", value=mevcut_onay)
+            not_girisi = st.text_area("Veli Notu / Değerlendirmesi", value=mevcut_not)
+            submit_veli = st.form_submit_button("💾 Onayı Kaydet", type="primary")
+
+            if submit_veli:
+                if not USE_SUPABASE:
+                    c.execute("""INSERT INTO gunluk_takip (tarih, gorev, durum, veli_onay, veli_notu)
+                                 VALUES (?, 'Genel Takip', 1, ?, ?)
+                                 ON CONFLICT(tarih, gorev) DO UPDATE SET 
+                                 veli_onay=excluded.veli_onay, veli_notu=excluded.veli_notu""",
+                              (tarih_str, 1 if onay_kutusu else 0, not_girisi))
+                    conn.commit()
+                st.success("Veli onayı güncellendi!")
+                st.rerun()
 
 # ==========================================
-# TAB 9: AKILLI KOÇLUK & RAPOR İNDİRME
+# TAB 9: ANALİZ & KOÇLUK
 # ==========================================
 with tab9:
-    st.subheader("🤖 Yapay Zeka / Akıllı LGS Koçluk Tavsiyeleri")
-    
+    st.subheader("📊 Çalışma Analizi ve Akıllı Koçluk")
     if not USE_SUPABASE:
-        df_soru = pd.read_sql_query("SELECT * FROM ders_soru_takip", conn)
-        
-        if not df_soru.empty:
-            toplam_netler = df_soru.groupby('ders')['net'].sum()
-            en_dusuk_ders = toplam_netler.idxmin() if not toplam_netler.empty else "Matematik"
-            
-            st.info(f"💡 **Akıllı Koç Analizi:** Verilerinize göre son zamanlarda en çok desteğe ihtiyaç duyduğunuz ders **{en_dusuk_ders}**. Bu hafta bu derse her gün +20 soru eklemenizi öneriyorum!")
+        df_toplam = pd.read_sql_query("SELECT ders, SUM(dogru) as Toplam_Dogru, SUM(yanlis) as Toplam_Yanlis, SUM(net) as Toplam_Net FROM ders_soru_takip GROUP BY ders", conn)
+        if not df_toplam.empty:
+            st.dataframe(df_toplam, use_container_width=True)
+            st.bar_chart(df_toplam.set_index('ders')['Toplam_Net'])
         else:
-            st.info("💡 **Akıllı Koç Analizi:** Koçluk tavsiyelerinin oluşması için lütfen soru çözümlerinizi girmeye devam edin.")
-
-        st.divider()
-        st.subheader("📄 Çalışma Raporunu İndir")
-        if not df_soru.empty:
-            csv_data = df_soru.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Tüm Performans Raporunu CSV/Excel Olarak İndir",
-                data=csv_data,
-                file_name=f"LGS_Rapor_{date.today().strftime('%Y_%m_%d')}.csv",
-                mime="text/csv",
-                type="primary"
-            )
+            st.info("Henüz analiz yapılacak soru verisi girilmemiş.")
