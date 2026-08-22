@@ -393,10 +393,10 @@ with tab3:
                 st.rerun()
 
         with col_act2:
-            # JavaScript ile Tam Ekran Yapma Tetikleyicisi
+            # Sadece tetikleyici butonu çalıştıran, görünümü bozmayan JS
             components.html(
                 """
-                <button onclick="goFullscreen()" style="
+                <button onclick="makeCanvasFullscreen()" style="
                     width: 100%;
                     height: 38px;
                     background-color: #0E1117;
@@ -408,24 +408,34 @@ with tab3:
                     🖥️ Tam Ekran Modu
                 </button>
                 <script>
-                function goFullscreen() {
-                    /* Streamlit iframe içerisindeki canvas bileşenini bul ve tam ekran yap */
-                    var canvasIframe = window.parent.document.querySelector('iframe[title="streamlit_drawable_canvas.st_canvas"]');
-                    if (canvasIframe) {
-                        if (canvasIframe.requestFullscreen) {
-                            canvasIframe.requestFullscreen();
-                        } else if (canvasIframe.webkitRequestFullscreen) { /* Safari */
-                            canvasIframe.webkitRequestFullscreen();
-                        } else if (canvasIframe.msRequestFullscreen) { /* IE11 */
-                            canvasIframe.msRequestFullscreen();
+                function makeCanvasFullscreen() {
+                    var el = window.parent.document.querySelector('div[data-testid="stCustomComponentV1"]');
+                    if (!el) {
+                        /* Alternatif seçici */
+                        var iframes = window.parent.document.querySelectorAll('iframe');
+                        for (var i = 0; i < iframes.length; i++) {
+                            if (iframes[i].srcdoc && iframes[i].srcdoc.includes('canvas')) {
+                                el = iframes[i];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (el) {
+                        if (el.requestFullscreen) {
+                            el.requestFullscreen();
+                        } else if (el.webkitRequestFullscreen) {
+                            el.webkitRequestFullscreen();
+                        } else if (el.msRequestFullscreen) {
+                            el.msRequestFullscreen();
                         }
                     } else {
-                        alert("Canvas elementi bulunamadı.");
+                        alert("Tahta bileşeni algılanamadı.");
                     }
                 }
                 </script>
                 """,
-                height=45,
+                height=42,
             )
 
         with col_act3:
