@@ -388,31 +388,21 @@ with tab3:
                 st.divider()
                 st.markdown("#### 🎯 Yanlış Soruları Çağır")
                 if st.button("📥 Yanlış Soru Defterinden Aktar", use_container_width=True):
-                    if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
-                        aktarilanlar = []
-                        for ys in st.session_state["yanlis_sorular"]:
-                            if isinstance(ys, dict) and "gorsel" in ys and ys["gorsel"]:
-                                try:
-                                    img = Image.open(ys["gorsel"]).convert("RGBA")
-                                    aktarilanlar.append(img)
-                                except:
-                                    pass
-                            elif hasattr(ys, "read"):
-                                try:
-                                    img = Image.open(ys).convert("RGBA")
-                                    aktarilanlar.append(img)
-                                except:
-                                    pass
-                        
-                        if aktarilanlar:
-                            st.session_state["soru_listesi_bytes"] = aktarilanlar
-                            st.session_state["aktif_soru_idx"] = 0
-                            st.success(f"✅ {len(aktarilanlar)} adet yanlış soru tahtaya yüklendi!")
-                            st.rerun()
-                        else:
-                            st.warning("Yanlış sorular listesinde henüz görsel/dosya bulunmuyor.")
-                    else:
-                        st.info("Henüz kaydedilmiş yanlış soru bulunmamaktadır.")
+    if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
+        aktarilanlar = []
+        for ys in st.session_state["yanlis_sorular"]:
+            if isinstance(ys, dict) and ys.get("gorsel") is not None:
+                aktarilanlar.append(ys["gorsel"])
+        
+        if aktarilanlar:
+            st.session_state["soru_listesi_bytes"] = aktarilanlar
+            st.session_state["aktif_soru_idx"] = 0
+            st.success(f"✅ {len(aktarilanlar)} adet yanlış soru tahtaya yüklendi!")
+            st.rerun()
+        else:
+            st.warning("Yanlış sorular listesindeki kayıtlarda görsel/PDF bulunamadı.")
+    else:
+        st.info("Henüz kaydedilmiş yanlış soru bulunmamaktadır.")
 
                 st.divider()
                 st.markdown("#### 📥 Dışarıdan PDF / Görsel Yükle")
@@ -539,44 +529,105 @@ with tab3:
                     key="canvas_empty_board",
                 )
 # ==========================================
-# TAB 4: YANLIŞ DEFTERİ
+# YANLIŞ SORU DEFTERİ SEKMESİ
 # ==========================================
-with tab4:
-    st.subheader("📕 Yanlış Defteri & Zorlanılan Sorular")
-    st.caption("Denemelerde ve testlerde yapamadığınız soruları buraya kaydedip tekrar inceleyin.")
+st.subheader("📚 Yanlış Soru Defteri")
+st.caption("Çözmekte zorlandığınız veya yanlış yaptığınız soruları görseli, dersi, konusu ve notlarınızla birlikte kaydedin.")
 
-    st.subheader("📌 Yanlış Soru Ekle")
-uploaded_ys = st.file_uploader("Yanlış Yaptığınız Sorunun Görselini / PDF'ini Yükleyin:", type=["png", "jpg", "jpeg", "pdf"], key="ys_uploader")
+if "yanlis_sorular" not in st.session_state:
+    st.session_state["yanlis_sorular"] = []
 
-if uploaded_ys:
-    if "yanlis_sorular" not in st.session_state:
-        st.session_state["yanlis_sorular"] = []
+# --- SORU EKLEME FORMU ---
+with st.expander("➕ Yeni Yanlış Soru Ekle", expanded=True):
+    col_ys1, col_ys2 = st.columns([1, 1])
     
-    if st.button("➕ Yanlış Soru Defterine Kaydet"):
-        st.session_state["yanlis_sorular"].append({"gorsel": uploaded_ys, "tarih": "Bugün"})
-        st.success("✅ Soru Yanlış Defterine kaydedildi! Beyaz Tahta sekmesinden çağırıp çözebilirsiniz.")
+    with col_ys1:
+        ys_ders = st.selectbox(
+            "📘 Ders Seçin:",
+            ["Türkçe", "Matematik", "Fen Bilimleri", "T.C. İnkılap Tarihi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi"]
+        )
+        ys_konu = st.text_input("📌 Konu Adı:", placeholder="Örn: Çarpanlar ve Katlar / Paragrafta Anlam")
+        ys_not = st.text_area("📝 Soru/Çözüm Açıklaması veya Notunuz:", placeholder="Bu soruda nerede hata yaptınız? Dikkat edilmesi gereken nokta nedir?")
 
-    with st.form("yanlis_form"):
-        y_ders = st.selectbox("Ders", DERSLER)
-        y_konu = st.text_input("Konu Adı", "Örn: Üslü İfadeler")
-        y_not = st.text_area("Soru Detayı / Nerede Hata Yapıldı?", "Örn: Negatif üs kuralını unuttuğum için yanlış çıktı.")
-        submit_y = st.form_submit_button("➕ Hatalı Soruyu Kaydet")
+    with col_ys2:
+        ys_gorsel = st.file_uploader(
+            "📷 Soru Görseli veya PDF Dosyası Yükleyin:",
+            type=["png", "jpg", "jpeg", "pdf"],
+            key="ys_file_uploader_input"
+        )
+        
+        if ys_gorsel is not None:
+            file_ext = ys_gorsel.name.split('.')[-1].lower()
+            if file_ext in ["png", "jpg", "jpeg"]:
+                st.image(ys_gorsel, caption="Yüklenen Görsel Önizleme", use_container_width=True)
 
-        if submit_y:
-            if not USE_SUPABASE:
-                c.execute("INSERT INTO yanlis_defteri (tarih, ders, konu, soru_notu, cozuldu) VALUES (?, ?, ?, ?, 0)",
-                          (date.today().strftime("%Y-%m-%d"), y_ders, y_konu, y_not))
-                conn.commit()
-            st.success("Hatalı soru defterinize eklendi!")
-
-    st.divider()
-    st.subheader("📋 Kayıtlı Hatalı Sorularınız")
-    if not USE_SUPABASE:
-        df_y = pd.read_sql_query("SELECT id, tarih, ders, konu, soru_notu FROM yanlis_defteri WHERE cozuldu=0", conn)
-        if not df_y.empty:
-            st.dataframe(df_y, use_container_width=True)
+    if st.button("💾 Yanlış Soru Defterine Kaydet", type="primary", use_container_width=True):
+        if ys_gorsel is None and not ys_konu:
+            st.warning("⚠️ Lütfen en az bir dosya (görsel/PDF) yükleyin veya konu adı belirtin.")
         else:
-            st.info("Harika! Yanlış defteriniz boş veya tüm sorular çözüldü! 🎉")
+            # Dosyayı byte/PIL nesnesi olarak saklama hazırlığı
+            gorsel_veri = None
+            if ys_gorsel is not None:
+                file_ext = ys_gorsel.name.split('.')[-1].lower()
+                if file_ext == "pdf":
+                    try:
+                        import pypdfium2 as pdfium
+                        pdf = pdfium.PdfDocument(ys_gorsel)
+                        # İlk sayfayı resim olarak kaydet
+                        page = pdf[0]
+                        gorsel_veri = page.render(scale=2.0).to_pil().convert("RGBA")
+                    except Exception as e:
+                        st.error(f"PDF dönüştürülürken hata oluştu: {e}")
+                else:
+                    try:
+                        gorsel_veri = Image.open(ys_gorsel).convert("RGBA")
+                    except Exception as e:
+                        st.error(f"Görsel okunurken hata oluştu: {e}")
+
+            yeni_kayit = {
+                "id": len(st.session_state["yanlis_sorular"]) + 1,
+                "ders": ys_ders,
+                "konu": ys_konu if ys_konu else "Belirtilmedi",
+                "not": ys_not if ys_not else "Not eklenmedi.",
+                "gorsel": gorsel_veri,
+                "tarih": datetime.now().strftime("%d.%m.%Y")
+            }
+            
+            st.session_state["yanlis_sorular"].append(yeni_kayit)
+            st.success("✅ Soru Yanlış Defterine başarıyla kaydedildi! Beyaz Tahta sekmesinden çağırıp kalemle çözebilirsiniz.")
+            st.rerun()
+
+st.divider()
+
+# --- KAYITLI YANLIŞ SORULARI LİSTELEME ---
+st.markdown("### 📖 Kayıtlı Yanlış Sorularınız")
+
+if not st.session_state["yanlis_sorular"]:
+    st.info("Henüz kaydedilmiş yanlış soru bulunmuyor. Yukarıdaki formu kullanarak ilk sorunuzu ekleyebilirsiniz.")
+else:
+    # Ders bazlı filtreleme
+    filtre_ders = st.selectbox("🔍 Derse Göre Filtrele:", ["Tümü"] + ["Türkçe", "Matematik", "Fen Bilimleri", "T.C. İnkılap Tarihi", "İngilizce", "Din Kültürü ve Ahlak Bilgisi"])
+    
+    for idx, soru in enumerate(st.session_state["yanlis_sorular"]):
+        if filtre_ders != "Tümü" and soru["ders"] != filtre_ders:
+            continue
+            
+        with st.expander(f"📌 {soru['ders']} - {soru['konu']} (Tarih: {soru.get('tarih', '-')})", expanded=False):
+            col_d1, col_d2 = st.columns([1, 1])
+            with col_d1:
+                st.markdown(f"**📘 Ders:** {soru['ders']}")
+                st.markdown(f"**📌 Konu:** {soru['konu']}")
+                st.markdown(f"**📝 Not/Açıklama:** {soru['not']}")
+                
+                if st.button(f"🗑️ Soruyu Sil", key=f"del_ys_{idx}"):
+                    st.session_state["yanlis_sorular"].pop(idx)
+                    st.rerun()
+                    
+            with col_d2:
+                if soru["gorsel"] is not None:
+                    st.image(soru["gorsel"], caption="Soru Görseli", use_container_width=True)
+                else:
+                    st.info("Bu kayıt için görsel yüklenmemiş.")
 
 # ==========================================
 # TAB 5: MÜFREDAT TAKİBİ
