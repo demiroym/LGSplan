@@ -229,7 +229,7 @@ st.markdown(f'''
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📝 Günlük Görev & Soru", 
     "📝 Denemeler & LGS Puanı",
-    "🎨 Beyaz Tahta & Soru Çözümü",
+    "🎨 Tahta",
     "📕 Yanlış Defteri",
     "🎯 Müfredat Takibi",
     "🏆 Puan & Rozetler",
@@ -333,38 +333,23 @@ with tab2:
             st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
 
 # ==========================================
-# TAB 3: BEYAZ TAHTA & PDF / SORU ÇÖZÜMÜ
+# TAB 3: TAHTA
 # ==========================================
 with tab3:
-    st.subheader("🎨 Etkileşimli Beyaz Tahta & PDF / Yanlış Soru Çözüm Paneli")
-    st.caption("PDF ve görselleri yükleyin, fare tekerleği ile zoom yapın, kaydırın ve doğrudan üzerlerine çizim yapın.")
+    st.subheader("🎨 Tahta")
 
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
-        if "soru_listesi_bytes" not in st.session_state:
-            st.session_state["soru_listesi_bytes"] = []
-        if "aktif_soru_idx" not in st.session_state:
-            st.session_state["aktif_soru_idx"] = 0
-
-        tahta_modu = st.radio(
-            "📌 Çalışma Modu Seçin:",
-            ["⚪ Boş Beyaz Tahta", "📚 PDF / Görsel / Yanlış Soru Yükle & Çöz"],
-            horizontal=True,
-            key="tahta_modu_radio"
-        )
-
-        col_c1, col_c2 = st.columns([1, 3])
-
-        with col_c1:
-            st.markdown("#### ⚙️ Kalem & Araç Ayarları")
-            
+        # Üst Araç Çubuğu (Kompakt Ayarlar)
+        col_tool1, col_tool2, col_tool3, col_tool4 = st.columns([2, 1, 1, 1])
+        
+        with col_tool1:
             mode_option = st.selectbox(
                 "🖌️ Çizim Aracı:",
                 ["Kalem (Serbest Çizim)", "Düz Çizgi", "Dikdörtgen", "Daire", "Seç / Taşı"],
                 index=0
             )
-            
             mode_map = {
                 "Kalem (Serbest Çizim)": "freedraw",
                 "Düz Çizgi": "line",
@@ -374,152 +359,50 @@ with tab3:
             }
             drawing_mode = mode_map[mode_option]
 
-            stroke_width = st.slider("✏️ Kalem Kalınlığı:", 1, 25, 4)
+        with col_tool2:
+            stroke_width = st.slider("✏️ Kalınlık:", 1, 25, 4)
+
+        with col_tool3:
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
-            bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
-            if tahta_modu == "📚 PDF / Görsel / Yanlış Soru Yükle & Çöz":
-                st.divider()
-                st.markdown("#### 🔍 Görsel Büyütme (Zoom)")
-                zoom_scale = st.slider("🔎 Görsel Zoom Seviyesi:", min_value=1.0, max_value=3.0, value=1.0, step=0.1, format="%.1fx")
+        with col_tool4:
+            bg_color = st.color_picker("🖼️ Arka Plan:", "#FFFFFF")
 
-                st.divider()
-                st.markdown("#### 🎯 Yanlış Soruları Çağır")
-                if st.button("📥 Yanlış Soru Defterinden Aktar", use_container_width=True):
-                    if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
-                        aktarilanlar = [ys["gorsel"] for ys in st.session_state["yanlis_sorular"] if isinstance(ys, dict) and ys.get("gorsel") is not None]
-                        
-                        if aktarilanlar:
-                            st.session_state["soru_listesi_bytes"] = aktarilanlar
-                            st.session_state["aktif_soru_idx"] = 0
-                            st.success(f"✅ {len(aktarilanlar)} adet yanlış soru tahtaya yüklendi!")
-                            st.rerun()
-                        else:
-                            st.warning("Yanlış sorular listesindeki kayıtlarda görsel/PDF bulunamadı.")
-                    else:
-                        st.info("Henüz kaydedilmiş yanlış soru bulunmamaktadır.")
+        st.divider()
 
-                st.divider()
-                st.markdown("#### 📥 Dışarıdan PDF / Görsel Yükle")
-                uploaded_files = st.file_uploader(
-                    "PDF veya Görsel Dosyası Seçin (PDF, PNG, JPG):", 
-                    type=["pdf", "png", "jpg", "jpeg"],
-                    accept_multiple_files=True,
-                    key="question_multi_uploader"
+        # Tam Genişlik Çizim Tuvalı
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.2)",
+            stroke_width=stroke_width,
+            stroke_color=stroke_color,
+            background_color=bg_color,
+            update_streamlit=True,
+            height=650,  # Geniş dikey alan
+            use_column_width=True,  # Ekran genişliğini tam kaplar
+            drawing_mode=drawing_mode,
+            key="canvas_full_board",
+        )
+
+        col_act1, col_act2 = st.columns([1, 1])
+        with col_act1:
+            if st.button("🗑️ Tahtayı Temizle", use_container_width=True):
+                st.rerun()
+
+        with col_act2:
+            if canvas_result is not None and canvas_result.image_data is not None:
+                draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                import io
+                buf = io.BytesIO()
+                draw_img.save(buf, format="PNG")
+                byte_im = buf.getvalue()
+                
+                st.download_button(
+                    label="💾 Çizimi İndir (PNG)",
+                    data=byte_im,
+                    file_name="tahta_cizim.png",
+                    mime="image/png",
+                    use_container_width=True
                 )
-                
-                if st.button("🚀 Dosyaları Tahtaya Aktar", type="primary", use_container_width=True):
-                    if uploaded_files:
-                        islenen_resimler = []
-                        with st.spinner("Dosyalar dönüştürülüyor ve hazırlanıyor..."):
-                            for file in uploaded_files:
-                                file_ext = file.name.split('.')[-1].lower()
-                                
-                                if file_ext == "pdf":
-                                    try:
-                                        import pypdfium2 as pdfium
-                                        pdf = pdfium.PdfDocument(file)
-                                        for i in range(len(pdf)):
-                                            page = pdf[i]
-                                            pil_img = page.render(scale=2.0).to_pil().convert("RGBA")
-                                            islenen_resimler.append(pil_img)
-                                    except Exception as e:
-                                        st.error(f"PDF işlenirken hata oluştu: {e}")
-                                else:
-                                    try:
-                                        pil_img = Image.open(file).convert("RGBA")
-                                        islenen_resimler.append(pil_img)
-                                    except Exception as e:
-                                        st.error(f"Görsel açılamadı: {e}")
-                        
-                        if islenen_resimler:
-                            st.session_state["soru_listesi_bytes"] = islenen_resimler
-                            st.session_state["aktif_soru_idx"] = 0
-                            st.success(f"✅ Toplam {len(islenen_resimler)} sayfa/soru hazırlandı!")
-                            st.rerun()
-
-        with col_c2:
-            if tahta_modu == "📚 PDF / Görsel / Yanlış Soru Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
-                toplam_soru = len(st.session_state["soru_listesi_bytes"])
-                m_idx = st.session_state["aktif_soru_idx"]
-                
-                col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
-                with col_nav1:
-                    if st.button("⬅️ Önceki Sayfa/Soru", disabled=(m_idx == 0)):
-                        st.session_state["aktif_soru_idx"] -= 1
-                        st.rerun()
-                with col_nav2:
-                    st.markdown(f"<h4 style='text-align: center;'>Sayfa/Soru {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
-                with col_nav3:
-                    if st.button("İleri Sayfa/Soru ➡️", disabled=(m_idx == toplam_soru - 1)):
-                        st.session_state["aktif_soru_idx"] += 1
-                        st.rerun()
-
-                current_pil_img = st.session_state["soru_listesi_bytes"][m_idx]
-
-                canvas_w, canvas_h = 750, 550
-                w_orig, h_orig = current_pil_img.size
-                
-                new_w = int(canvas_w * zoom_scale)
-                new_h = int(h_orig * (new_w / float(w_orig)))
-                
-                resized_img = current_pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-
-                canvas_bg = Image.new("RGBA", (new_w, max(new_h, canvas_h)), (255, 255, 255, 255))
-                canvas_bg.paste(resized_img, (0, 0))
-
-                c_key = f"canvas_pdf_page_{m_idx}_z{zoom_scale}"
-
-                st.markdown(f"**✏️ Çizim Alanı (Sayfa/Soru {m_idx + 1})**")
-
-                canvas_result = st_canvas(
-                    fill_color="rgba(255, 165, 0, 0.2)",
-                    stroke_width=stroke_width,
-                    stroke_color=stroke_color,
-                    background_image=canvas_bg,
-                    update_streamlit=True,
-                    height=max(new_h, canvas_h),
-                    width=new_w,
-                    drawing_mode=drawing_mode,
-                    key=c_key,
-                )
-
-                col_act1, col_act2 = st.columns(2)
-                with col_act1:
-                    if st.button("🗑️ Çizimleri Temizle"):
-                        st.rerun()
-
-                with col_act2:
-                    if canvas_result is not None and canvas_result.image_data is not None:
-                        draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-                        final_img = Image.alpha_composite(canvas_bg, draw_img)
-
-                        import io
-                        buf = io.BytesIO()
-                        final_img.save(buf, format="PNG")
-                        byte_im = buf.getvalue()
-                        
-                        st.download_button(
-                            label="💾 Çözümlü Sayfayı İndir (PNG)",
-                            data=byte_im,
-                            file_name=f"LGS_Cozum_{m_idx+1}.png",
-                            mime="image/png"
-                        )
-
-            elif tahta_modu == "⚪ Boş Beyaz Tahta":
-                st.markdown("**✏️ Boş Beyaz Tahta**")
-                canvas_result = st_canvas(
-                    fill_color="rgba(255, 165, 0, 0.2)",
-                    stroke_width=stroke_width,
-                    stroke_color=stroke_color,
-                    background_color=bg_color,
-                    update_streamlit=True,
-                    height=550,
-                    width=750,
-                    drawing_mode=drawing_mode,
-                    key="canvas_empty_board",
-                )
-
 # ==========================================
 # TAB 4: YANLIŞ SORU DEFTERİ
 # ==========================================
