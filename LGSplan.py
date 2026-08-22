@@ -333,11 +333,11 @@ with tab2:
             st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
 
 # ==========================================
-# TAB 3: BEYAZ TAHTA & SORU / PDF ÇÖZÜMÜ
+# TAB 3: BEYAZ TAHTA & PDF / SORU ÇÖZÜMÜ
 # ==========================================
 with tab3:
     st.subheader("🎨 Etkileşimli Beyaz Tahta & PDF / Görsel Soru Çözüm Paneli")
-    st.caption("PDF denemelerinizi veya soru görsellerini yükleyip sayfa sayfa / soru soru çizim yaparak çözebilirsiniz.")
+    st.caption("PDF denemelerinizi yükleyin, Zoom modu ile okuyun ve Çizim modu ile soruları çözün.")
 
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
@@ -348,8 +348,8 @@ with tab3:
             st.session_state["aktif_soru_idx"] = 0
 
         tahta_modu = st.radio(
-            "📌 Kullanım Modu Seçin:",
-            ["⚪ Boş Beyaz Tahta", "📚 PDF / Görsel Soru Yükle & Çöz"],
+            "📌 Çalışma Modu Seçin:",
+            ["⚪ Boş Beyaz Tahta", "📚 PDF / Görsel Yükle & Çöz"],
             horizontal=True,
             key="tahta_modu_radio"
         )
@@ -378,7 +378,19 @@ with tab3:
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
             bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
-            if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz":
+            if tahta_modu == "📚 PDF / Görsel Yükle & Çöz":
+                st.divider()
+                st.markdown("#### 🔍 Zoom & Görünüm Ayarları")
+                
+                # PDF Yakınlaştırma (Zoom) Kontrolü
+                zoom_seviyesi = st.slider("🔎 PDF Zoom (Büyütme):", min_value=100, max_value=300, value=120, step=10, format="%%%d")
+                
+                ekran_modu = st.radio(
+                    "👁️ Sayfa Görünümü:",
+                    ["✏️ Çizim Modu (PDF Üzerine Çizim Yap)", "🔍 Zoom & Okuma Modu (Kaydırarak Oku)"],
+                    key="ekran_gorunum_modu"
+                )
+
                 st.divider()
                 st.markdown("#### 📥 PDF veya Soru Yükle")
                 
@@ -402,7 +414,8 @@ with tab3:
                                         pdf = pdfium.PdfDocument(file)
                                         for i in range(len(pdf)):
                                             page = pdf[i]
-                                            pil_img = page.render(scale=2).to_pil().convert("RGBA")
+                                            # Yüksek netlik için scale=2.5
+                                            pil_img = page.render(scale=2.5).to_pil().convert("RGBA")
                                             islenen_resimler.append(pil_img)
                                     except Exception as e:
                                         st.error(f"PDF okunurken hata oluştu: {e}")
@@ -420,14 +433,11 @@ with tab3:
                             st.rerun()
 
         with col_c2:
-            bg_image = None
-            canvas_width = 750
-            canvas_height = 550
-
-            if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
+            if tahta_modu == "📚 PDF / Görsel Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
                 toplam_soru = len(st.session_state["soru_listesi_bytes"])
                 m_idx = st.session_state["aktif_soru_idx"]
                 
+                # Gezinti Butonları
                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                 with col_nav1:
                     if st.button("⬅️ Önceki Sayfa", disabled=(m_idx == 0)):
@@ -440,64 +450,88 @@ with tab3:
                         st.session_state["aktif_soru_idx"] += 1
                         st.rerun()
 
-                # Aktif görseli hazırla
                 current_pil_img = st.session_state["soru_listesi_bytes"][m_idx]
+
+                # Zoom Hesaplaması
+                w_orig, h_orig = current_pil_img.size
+                base_w = 800
+                target_w = int(base_w * (zoom_seviyesi / 100.0))
+                target_h = int(h_orig * (target_w / float(w_orig)))
                 
-                # Görsel boyutunu canvas ölçeğine (750px genişlik) göre ayarla
-                w, h = current_pil_img.size
-                canvas_width = 750
-                canvas_height = int(h * (canvas_width / float(w)))
+                resized_img = current_pil_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-                # Görseli göster
-                st.image(current_pil_img, use_container_width=True)
-                st.caption("👇 Aşağıdaki şeffaf çizim alanını kullanarak yukarıdaki sorunun/sayfanın üzerine veya altına çözümü yapabilirsiniz:")
-
-            c_key = "canvas_empty" if tahta_modu == "⚪ Boş Beyaz Tahta" else f"canvas_pdf_page_{st.session_state['aktif_soru_idx']}"
-
-            st.markdown(f"**✏️ Çizim Alanı ({tahta_modu})**")
-
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 165, 0, 0.2)",
-                stroke_width=stroke_width,
-                stroke_color=stroke_color,
-                background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" else "rgba(0, 0, 0, 0)",
-                update_streamlit=True,
-                height=canvas_height,
-                width=canvas_width,
-                drawing_mode=drawing_mode,
-                key=c_key,
-            )
-
-            st.caption("💡 **İpucu:** Çizimi geri almak için klavyenizden `Ctrl + Z` yapabilir veya aşağıdaki temizle butonunu kullanabilirsiniz.")
-            
-            col_act1, col_act2 = st.columns(2)
-            with col_act1:
-                if st.button("🗑️ Çizimleri Temizle / Sıfırla"):
-                    st.rerun()
-
-            with col_act2:
-                if canvas_result is not None and canvas_result.image_data is not None:
-                    # Çizim ile arka planı birleştirme işlemi
-                    draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                # OKUMA VE ZOOM MODU (Kaydırma çubuklu alan)
+                if ekran_modu == "🔍 Zoom & Okuma Modu (Kaydırarak Oku)":
+                    st.info("🔍 **Okuma Modu:** Aşağıdaki kaydırma çubuklarını (Scrollbar) kullanarak sayfada sağa-sola ve yukarı-aşağı gezinebilirsiniz.")
                     
-                    if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
-                        base_img = st.session_state["soru_listesi_bytes"][st.session_state["aktif_soru_idx"]].copy()
-                        base_img = base_img.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
-                        final_img = Image.alpha_composite(base_img.convert("RGBA"), draw_img)
-                    else:
-                        final_img = draw_img
-
                     import io
-                    buf = io.BytesIO()
-                    final_img.save(buf, format="PNG")
-                    byte_im = buf.getvalue()
+                    buf_img = io.BytesIO()
+                    resized_img.save(buf_img, format="PNG")
+                    img_bytes = buf_img.getvalue()
+                    import base64
+                    b64_img = base64.b64encode(img_bytes).decode("utf-8")
+
+                    # Sağa-sola ve yukarı-aşağı kaydırmalı kapsayıcı (Scrollable Container)
+                    scroll_html = f"""
+                    <div style="width:100%; max-height:650px; overflow:auto; border:2px solid #CBD5E1; border-radius:8px; background-color:#525659; text-align:center; padding:10px;">
+                        <img src="data:image/png;base64,{b64_img}" style="width:{target_w}px; height:auto; display:inline-block;" />
+                    </div>
+                    """
+                    st.components.v1.html(scroll_html, height=670)
+
+                # ÇİZİM MODU (Tuval PDF'in Tam Üstünde)
+                else:
+                    st.markdown(f"**✏️ Çizim Alanı (Sayfa {m_idx + 1})**")
                     
-                    st.download_button(
-                        label="💾 Çözümlü Görseli İndir (PNG)",
-                        data=byte_im,
-                        file_name=f"LGS_Cozum_{st.session_state['aktif_soru_idx']+1}.png",
-                        mime="image/png"
+                    c_key = f"canvas_pdf_page_{m_idx}_z{zoom_seviyesi}"
+
+                    canvas_result = st_canvas(
+                        fill_color="rgba(255, 165, 0, 0.2)",
+                        stroke_width=stroke_width,
+                        stroke_color=stroke_color,
+                        background_image=resized_img,
+                        update_streamlit=True,
+                        height=target_h,
+                        width=target_w,
+                        drawing_mode=drawing_mode,
+                        key=c_key,
                     )
+
+                    col_act1, col_act2 = st.columns(2)
+                    with col_act1:
+                        if st.button("🗑️ Çizimleri Temizle / Sıfırla"):
+                            st.rerun()
+
+                    with col_act2:
+                        if canvas_result is not None and canvas_result.image_data is not None:
+                            draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                            final_img = Image.alpha_composite(resized_img.convert("RGBA"), draw_img)
+
+                            import io
+                            buf = io.BytesIO()
+                            final_img.save(buf, format="PNG")
+                            byte_im = buf.getvalue()
+                            
+                            st.download_button(
+                                label="💾 Çözümlü Sayfayı İndir (PNG)",
+                                data=byte_im,
+                                file_name=f"LGS_Cozum_Sayfa_{m_idx+1}.png",
+                                mime="image/png"
+                            )
+
+            elif tahta_modu == "⚪ Boş Beyaz Tahta":
+                st.markdown("**✏️ Boş Beyaz Tahta**")
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 165, 0, 0.2)",
+                    stroke_width=stroke_width,
+                    stroke_color=stroke_color,
+                    background_color=bg_color,
+                    update_streamlit=True,
+                    height=600,
+                    width=800,
+                    drawing_mode=drawing_mode,
+                    key="canvas_empty_board",
+                )
 # ==========================================
 # TAB 4: YANLIŞ DEFTERİ
 # ==========================================
