@@ -2,3 +2,4 @@ streamlit==1.40.0
 streamlit-drawable-canvas
 Pillow
 pandas
+pypdfium2
