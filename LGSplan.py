@@ -336,8 +336,8 @@ with tab2:
 # TAB 3: BEYAZ TAHTA & SORU ÇÖZÜMÜ (CANVAS)
 # ==========================================
 with tab3:
-    st.subheader("🎨 Etkileşimli Beyaz Tahta & Soru Bankası Çözüm Paneli")
-    st.caption("Çoklu soru yükleyip sırayla çözebilir veya boş tahtada serbest çizim yapabilirsiniz.")
+    st.subheader("🎨 Etkileşimli Beyaz Tahta & PDF / Görsel Soru Çözüm Paneli")
+    st.caption("PDF denemelerinizi veya soru görsellerini yükleyip sayfa sayfa / soru soru çizim yaparak çözebilirsiniz.")
 
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
@@ -350,7 +350,7 @@ with tab3:
 
         tahta_modu = st.radio(
             "📌 Kullanım Modu Seçin:",
-            ["⚪ Boş Beyaz Tahta", "📚 Soru Yükle & Test Çöz"],
+            ["⚪ Boş Beyaz Tahta", "📚 PDF / Görsel Soru Yükle & Çöz"],
             horizontal=True,
             key="tahta_modu_radio"
         )
@@ -379,74 +379,97 @@ with tab3:
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
             bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
-            # SORU YÜKLEME BÖLÜMÜ
-            if tahta_modu == "📚 Soru Yükle & Test Çöz":
+            # PDF VE GÖRSEL YÜKLEME BÖLÜMÜ
+            if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz":
                 st.divider()
-                st.markdown("#### 📥 Soru Bankası Yükle")
-                
-                secilen_ders = st.selectbox("Ders Seçin:", DERSLER, key="canvas_ders_secim")
-                secilen_konu = st.text_input("Konu Adı (Opsiyonel):", "Örn: Üslü İfadeler Test 1", key="canvas_konu_secim")
+                st.markdown("#### 📥 PDF veya Soru Yükle")
                 
                 uploaded_files = st.file_uploader(
-                    "Çoklu Soru Görselleri Seçin (PNG, JPG):", 
-                    type=["png", "jpg", "jpeg"],
+                    "PDF veya Görsel Dosyaları Seçin (PDF, PNG, JPG):", 
+                    type=["pdf", "png", "jpg", "jpeg"],
                     accept_multiple_files=True,
                     key="question_multi_uploader"
                 )
                 
-                if st.button("🚀 Soruları Tahtaya Aktar", type="primary"):
+                if st.button("🚀 Dosyaları Tahtaya Aktar", type="primary"):
                     if uploaded_files:
-                        st.session_state["soru_listesi"] = uploaded_files
-                        st.session_state["aktif_soru_idx"] = 0
-                        st.success(f"✅ Toplam {len(uploaded_files)} soru başarıyla yüklendi!")
+                        islenen_resimler = []
+                        for file in uploaded_files:
+                            file_ext = file.name.split('.')[-1].lower()
+                            
+                            # PDF DOSYASI İŞLEME
+                            if file_ext == "pdf":
+                                try:
+                                    import pypdfium2 as pdfium
+                                    pdf = pdfium.PdfDocument(file)
+                                    for i in range(len(pdf)):
+                                        page = pdf[i]
+                                        image = page.render(scale=2).to_pil() # Yüksek çözünürlüklü render
+                                        islenen_resimler.append(image)
+                                except Exception as e:
+                                    st.error(f"PDF işlenirken `pypdfium2` hatası alındı: {e}")
+                            
+                            # RESİM DOSYASI İŞLEME
+                            else:
+                                try:
+                                    img = Image.open(file).convert("RGBA")
+                                    islenen_resimler.append(img)
+                                except Exception as e:
+                                    st.error(f"Resim dosyası açılamadı ({file.name}): {e}")
+                        
+                        if islenen_resimler:
+                            st.session_state["soru_listesi"] = islenen_resimler
+                            st.session_state["aktif_soru_idx"] = 0
+                            st.success(f"✅ Toplam {len(islenen_resimler)} sayfa/soru tahtaya yüklendi!")
+                        else:
+                            st.error("Hiçbir sayfa aktarılamadı.")
                     else:
-                        st.warning("Lütfen en az bir resim dosyası seçin.")
+                        st.warning("Lütfen bir PDF veya resim dosyası seçin.")
 
         with col_c2:
             bg_image = None
             canvas_width = 750
-            canvas_height = 500
+            canvas_height = 550
 
-            # Soru Yükleme Modu Aktifse Resim Hazırlama
-            if tahta_modu == "📚 Soru Yükle & Test Çöz" and st.session_state["soru_listesi"]:
+            # PDF / Soru Yükleme Modu Aktifse Resim Hazırlama
+            if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" and st.session_state["soru_listesi"]:
                 toplam_soru = len(st.session_state["soru_listesi"])
                 m_idx = st.session_state["aktif_soru_idx"]
                 
-                # Soru Gezinti Butonları
+                # Soru / Sayfa Gezinti Butonları
                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                 with col_nav1:
-                    if st.button("⬅️ Önceki Soru", disabled=(m_idx == 0)):
+                    if st.button("⬅️ Önceki Sayfa/Soru", disabled=(m_idx == 0)):
                         st.session_state["aktif_soru_idx"] -= 1
                         st.rerun()
                 with col_nav2:
-                    st.markdown(f"<h4 style='text-align: center;'>Soru {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h4 style='text-align: center;'>Sayfa/Soru {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
                 with col_nav3:
-                    if st.button("İleri Soru ➡️", disabled=(m_idx == toplam_soru - 1)):
+                    if st.button("İleri Sayfa/Soru ➡️", disabled=(m_idx == toplam_soru - 1)):
                         st.session_state["aktif_soru_idx"] += 1
                         st.rerun()
 
-                # Aktif Resmin İşlenmesi
-                curr_file = st.session_state["soru_listesi"][m_idx]
+                # Aktif Görselin Tuvala Sığdırılması
+                curr_img = st.session_state["soru_listesi"][m_idx]
                 try:
-                    img = Image.open(curr_file).convert("RGBA")
-                    # Görüntünün en-boy oranını bozmadan tuval boyutuna ölçekleme
-                    max_w, max_h = 750, 500
+                    img = curr_img.copy()
+                    max_w, max_h = 750, 550
                     img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
                     
-                    # Beyaz bir arka plan tuvali oluşturup resmi ortalama
+                    # Tuval merkezleme
                     canvas_bg = Image.new("RGBA", (max_w, max_h), (255, 255, 255, 255))
                     offset = ((max_w - img.width) // 2, (max_h - img.height) // 2)
                     canvas_bg.paste(img, offset, img if img.mode == 'RGBA' else None)
                     
                     bg_image = canvas_bg
                 except Exception as e:
-                    st.error(f"Görsel yüklenirken hata oluştu: {e}")
+                    st.error(f"Sayfa görüntülenirken hata oluştu: {e}")
 
-            # DİNAMİK KEY SİSTEMİ (Resim/Soru değiştikçe veya silme işleminde tuval yenilenir)
+            # DİNAMİK KEY SİSTEMİ (Sayfa değiştikçe çizim alanı güncellenir)
             if tahta_modu == "⚪ Boş Beyaz Tahta":
                 c_key = "canvas_empty_board"
             else:
-                c_key = f"canvas_question_{st.session_state['aktif_soru_idx']}"
+                c_key = f"canvas_pdf_page_{st.session_state['aktif_soru_idx']}"
 
             st.markdown(f"**✏️ Çizim Alanı ({tahta_modu})**")
 
@@ -455,7 +478,7 @@ with tab3:
                 stroke_width=stroke_width,
                 stroke_color=stroke_color,
                 background_color=bg_color if tahta_modu == "⚪ Boş Beyaz Tahta" else None,
-                background_image=bg_image if tahta_modu == "📚 Soru Yükle & Test Çöz" else None,
+                background_image=bg_image if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" else None,
                 update_streamlit=True,
                 height=canvas_height,
                 width=canvas_width,
@@ -464,11 +487,11 @@ with tab3:
             )
 
             # ÇİZİM TEMİZLEME VE İNDİRME ARAÇLARI
-            st.caption("💡 **Not:** Çizimi geri almak veya silmek için klavyenizden `Ctrl + Z` yapabilir veya aşağıdaki butonları kullanabilirsiniz.")
+            st.caption("💡 **İpucu:** Çizimi tek adım geri almak için klavyenizden `Ctrl + Z` tuşlarını kullanabilirsiniz.")
             
             col_act1, col_act2 = st.columns(2)
             with col_act1:
-                if st.button("🗑️ Çizimleri Temizle / Sıfırla"):
+                if st.button("🗑️ Sayfadaki Çizimleri Temizle"):
                     st.rerun()
 
             with col_act2:
@@ -480,9 +503,9 @@ with tab3:
                     byte_im = buf.getvalue()
                     
                     st.download_button(
-                        label="💾 Çözümü Bilgisayara İndir (PNG)",
+                        label="💾 Çözümlü Sayfayı İndir (PNG)",
                         data=byte_im,
-                        file_name=f"LGS_Soru_Cozum_{date.today().strftime('%Y%m%d')}.png",
+                        file_name=f"LGS_Cozum_Sayfa_{st.session_state['aktif_soru_idx']+1}.png",
                         mime="image/png"
                     )
 # ==========================================
