@@ -341,6 +341,25 @@ with tab3:
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
+        # 1. CANVAS'IN SAYFA İLK AÇILDIĞINDA GİZLENMESİNİ ENGELEYEN CSS
+        st.markdown("""
+            <style>
+            /* Streamlit iframe ve canvas alanının boyutunun 0px olmasını engeller */
+            div[data-testid="stCustomComponentV1"] {
+                display: block !important;
+                visibility: visible !important;
+                width: 100% !important;
+                min-height: 550px !important;
+            }
+            iframe[title="streamlit_drawable_canvas.st_canvas"] {
+                display: block !important;
+                visibility: visible !important;
+                width: 100% !important;
+                min-height: 550px !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
         # Üst Araç Çubuğu (Kompakt Ayarlar)
         col_tool1, col_tool2, col_tool3, col_tool4 = st.columns([2, 1, 1, 1])
         
@@ -370,25 +389,6 @@ with tab3:
 
         st.divider()
 
-        # Ekran moduna göre CSS injection (Tam Ekran Modu Anahtarı)
-        is_fullscreen = st.checkbox("🖥️ Tahtayı Tam Ekran Genişliğinde Aç", value=False)
-        
-        if is_fullscreen:
-            # CSS ile tahtayı ekranın tüm alanına zorlar
-            st.markdown("""
-                <style>
-                iframe[title="streamlit_drawable_canvas.st_canvas"] {
-                    width: 100% !important;
-                    height: 80vh !important;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-            canvas_width = 1200
-            canvas_height = 750
-        else:
-            canvas_width = 730
-            canvas_height = 550
-
         # Çizim Tuvali
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.2)",
@@ -396,10 +396,10 @@ with tab3:
             stroke_color=stroke_color,
             background_color=bg_color,
             update_streamlit=True,
-            width=canvas_width,
-            height=canvas_height,
+            width=700,
+            height=550,
             drawing_mode=drawing_mode,
-            key="canvas_full_board",
+            key="canvas_visible_always",
         )
 
         col_act1, col_act2 = st.columns([1, 1])
