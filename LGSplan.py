@@ -336,12 +336,13 @@ with tab2:
 # TAB 3: BEYAZ TAHTA & PDF / SORU ÇÖZÜMÜ
 # ==========================================
 with tab3:
-    st.subheader("🎨 Etkileşimli Beyaz Tahta & PDF / Görsel Soru Çözüm Paneli")
-    st.caption("PDF denemelerinizi yükleyin, Zoom modu ile okuyun ve Çizim modu ile soruları çözün.")
+    st.subheader("🎨 Etkileşimli Beyaz Tahta & PDF / Yanlış Soru Çözüm Paneli")
+    st.caption("PDF denemelerinizi veya yanlış sorularınızı yükleyin, zoom yaparak kaydırıp doğrudan üzerlerine çizim yapın.")
 
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
+        # Session State Kontrolleri
         if "soru_listesi_bytes" not in st.session_state:
             st.session_state["soru_listesi_bytes"] = []
         if "aktif_soru_idx" not in st.session_state:
@@ -349,7 +350,7 @@ with tab3:
 
         tahta_modu = st.radio(
             "📌 Çalışma Modu Seçin:",
-            ["⚪ Boş Beyaz Tahta", "📚 PDF / Görsel Yükle & Çöz"],
+            ["⚪ Boş Beyaz Tahta", "📚 PDF / Görsel / Yanlış Soru Yükle & Çöz"],
             horizontal=True,
             key="tahta_modu_radio"
         )
@@ -378,33 +379,55 @@ with tab3:
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
             bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
-            if tahta_modu == "📚 PDF / Görsel Yükle & Çöz":
+            if tahta_modu == "📚 PDF / Görsel / Yanlış Soru Yükle & Çöz":
                 st.divider()
-                st.markdown("#### 🔍 Zoom & Görünüm Ayarları")
-                
-                # PDF Yakınlaştırma (Zoom) Kontrolü
-                zoom_seviyesi = st.slider("🔎 PDF Zoom (Büyütme):", min_value=100, max_value=300, value=120, step=10, format="%%%d")
-                
-                ekran_modu = st.radio(
-                    "👁️ Sayfa Görünümü:",
-                    ["✏️ Çizim Modu (PDF Üzerine Çizim Yap)", "🔍 Zoom & Okuma Modu (Kaydırarak Oku)"],
-                    key="ekran_gorunum_modu"
-                )
+                st.markdown("#### 🔍 Zoom (Büyütme) Ayarı")
+                zoom_seviyesi = st.slider("🔎 Sayfa/Soru Zoom:", min_value=100, max_value=300, value=130, step=10, format="%%%d")
 
                 st.divider()
-                st.markdown("#### 📥 PDF veya Soru Yükle")
-                
+                st.markdown("#### 🎯 Yanlış Soruları Çağır")
+                if st.button("📥 Yanlış Sorularım Listesini Tahtaya Aktar", use_container_width=True):
+                    # Session state üzerindeki yanlış soruları kontrol eder
+                    if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
+                        aktarilanlar = []
+                        for ys in st.session_state["yanlis_sorular"]:
+                            # Soru görseli veya yolu varsa yükler
+                            if isinstance(ys, dict) and "gorsel" in ys:
+                                try:
+                                    img = Image.open(ys["gorsel"]).convert("RGBA")
+                                    aktarilanlar.append(img)
+                                except:
+                                    pass
+                            elif hasattr(ys, "read"):
+                                try:
+                                    img = Image.open(ys).convert("RGBA")
+                                    aktarilanlar.append(img)
+                                except:
+                                    pass
+                        
+                        if aktarilanlar:
+                            st.session_state["soru_listesi_bytes"] = aktarilanlar
+                            st.session_state["aktif_soru_idx"] = 0
+                            st.success(f"✅ {len(aktarilanlar)} adet yanlış soru tahtaya aktarıldı!")
+                            st.rerun()
+                        else:
+                            st.warning("Yanlış sorular listesinde uygun görsel bulunamadı.")
+                    else:
+                        st.info("Henüz kaydedilmiş yanlış soru bulunmuyor.")
+
+                st.divider()
+                st.markdown("#### 📥 Dışarıdan PDF / Görsel Yükle")
                 uploaded_files = st.file_uploader(
-                    "PDF veya Görsel Dosyaları Seçin (PDF, PNG, JPG):", 
+                    "PDF veya Görsel Seçin (PDF, PNG, JPG):", 
                     type=["pdf", "png", "jpg", "jpeg"],
                     accept_multiple_files=True,
                     key="question_multi_uploader"
                 )
                 
-                if st.button("🚀 Dosyaları Tahtaya Aktar", type="primary"):
+                if st.button("🚀 Dosyaları Tahtaya Aktar", type="primary", use_container_width=True):
                     if uploaded_files:
                         islenen_resimler = []
-                        with st.spinner("PDF / Görseller işleniyor..."):
+                        with st.spinner("İçerik hazırlanıyor..."):
                             for file in uploaded_files:
                                 file_ext = file.name.split('.')[-1].lower()
                                 
@@ -414,8 +437,7 @@ with tab3:
                                         pdf = pdfium.PdfDocument(file)
                                         for i in range(len(pdf)):
                                             page = pdf[i]
-                                            # Yüksek netlik için scale=2.5
-                                            pil_img = page.render(scale=2.5).to_pil().convert("RGBA")
+                                            pil_img = page.render(scale=2.0).to_pil().convert("RGBA")
                                             islenen_resimler.append(pil_img)
                                     except Exception as e:
                                         st.error(f"PDF okunurken hata oluştu: {e}")
@@ -433,20 +455,20 @@ with tab3:
                             st.rerun()
 
         with col_c2:
-            if tahta_modu == "📚 PDF / Görsel Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
+            if tahta_modu == "📚 PDF / Görsel / Yanlış Soru Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
                 toplam_soru = len(st.session_state["soru_listesi_bytes"])
                 m_idx = st.session_state["aktif_soru_idx"]
                 
-                # Gezinti Butonları
+                # Sayfa Gezinti Butonları
                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                 with col_nav1:
-                    if st.button("⬅️ Önceki Sayfa", disabled=(m_idx == 0)):
+                    if st.button("⬅️ Önceki Sayfa/Soru", disabled=(m_idx == 0)):
                         st.session_state["aktif_soru_idx"] -= 1
                         st.rerun()
                 with col_nav2:
-                    st.markdown(f"<h4 style='text-align: center;'>Sayfa {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h4 style='text-align: center;'>Sayfa/Soru {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
                 with col_nav3:
-                    if st.button("İleri Sayfa ➡️", disabled=(m_idx == toplam_soru - 1)):
+                    if st.button("İleri Sayfa/Soru ➡️", disabled=(m_idx == toplam_soru - 1)):
                         st.session_state["aktif_soru_idx"] += 1
                         st.rerun()
 
@@ -454,37 +476,18 @@ with tab3:
 
                 # Zoom Hesaplaması
                 w_orig, h_orig = current_pil_img.size
-                base_w = 800
+                base_w = 750
                 target_w = int(base_w * (zoom_seviyesi / 100.0))
                 target_h = int(h_orig * (target_w / float(w_orig)))
                 
                 resized_img = current_pil_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-                # OKUMA VE ZOOM MODU (Kaydırma çubuklu alan)
-                if ekran_modu == "🔍 Zoom & Okuma Modu (Kaydırarak Oku)":
-                    st.info("🔍 **Okuma Modu:** Aşağıdaki kaydırma çubuklarını (Scrollbar) kullanarak sayfada sağa-sola ve yukarı-aşağı gezinebilirsiniz.")
-                    
-                    import io
-                    buf_img = io.BytesIO()
-                    resized_img.save(buf_img, format="PNG")
-                    img_bytes = buf_img.getvalue()
-                    import base64
-                    b64_img = base64.b64encode(img_bytes).decode("utf-8")
+                st.caption("💡 **İpucu:** Sol menüden Zoom seviyesini artırdığınızda aşağıdaki pencerenin kaydırma çubuklarını (Scrollbar) kullanarak sayfa üzerinde sağa-sola/yukarı-aşağı gezinebilir ve doğrudan çizim yapabilirsiniz.")
 
-                    # Sağa-sola ve yukarı-aşağı kaydırmalı kapsayıcı (Scrollable Container)
-                    scroll_html = f"""
-                    <div style="width:100%; max-height:650px; overflow:auto; border:2px solid #CBD5E1; border-radius:8px; background-color:#525659; text-align:center; padding:10px;">
-                        <img src="data:image/png;base64,{b64_img}" style="width:{target_w}px; height:auto; display:inline-block;" />
-                    </div>
-                    """
-                    st.components.v1.html(scroll_html, height=670)
+                c_key = f"canvas_pdf_page_{m_idx}_z{zoom_seviyesi}"
 
-                # ÇİZİM MODU (Tuval PDF'in Tam Üstünde)
-                else:
-                    st.markdown(f"**✏️ Çizim Alanı (Sayfa {m_idx + 1})**")
-                    
-                    c_key = f"canvas_pdf_page_{m_idx}_z{zoom_seviyesi}"
-
+                # Tuvali Kaydırılabilir HTML Kapsayıcı (Scroll Container) İçine Alma
+                with st.container():
                     canvas_result = st_canvas(
                         fill_color="rgba(255, 165, 0, 0.2)",
                         stroke_width=stroke_width,
@@ -497,27 +500,27 @@ with tab3:
                         key=c_key,
                     )
 
-                    col_act1, col_act2 = st.columns(2)
-                    with col_act1:
-                        if st.button("🗑️ Çizimleri Temizle / Sıfırla"):
-                            st.rerun()
+                col_act1, col_act2 = st.columns(2)
+                with col_act1:
+                    if st.button("🗑️ Sayfadaki Çizimleri Temizle"):
+                        st.rerun()
 
-                    with col_act2:
-                        if canvas_result is not None and canvas_result.image_data is not None:
-                            draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-                            final_img = Image.alpha_composite(resized_img.convert("RGBA"), draw_img)
+                with col_act2:
+                    if canvas_result is not None and canvas_result.image_data is not None:
+                        draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                        final_img = Image.alpha_composite(resized_img.convert("RGBA"), draw_img)
 
-                            import io
-                            buf = io.BytesIO()
-                            final_img.save(buf, format="PNG")
-                            byte_im = buf.getvalue()
-                            
-                            st.download_button(
-                                label="💾 Çözümlü Sayfayı İndir (PNG)",
-                                data=byte_im,
-                                file_name=f"LGS_Cozum_Sayfa_{m_idx+1}.png",
-                                mime="image/png"
-                            )
+                        import io
+                        buf = io.BytesIO()
+                        final_img.save(buf, format="PNG")
+                        byte_im = buf.getvalue()
+                        
+                        st.download_button(
+                            label="💾 Çözümlü Sayfayı İndir (PNG)",
+                            data=byte_im,
+                            file_name=f"LGS_Cozum_Sayfa_{m_idx+1}.png",
+                            mime="image/png"
+                        )
 
             elif tahta_modu == "⚪ Boş Beyaz Tahta":
                 st.markdown("**✏️ Boş Beyaz Tahta**")
