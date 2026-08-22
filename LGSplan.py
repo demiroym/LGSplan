@@ -238,99 +238,139 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "📊 Analiz & Koçluk"
 ])
 
-# ==========================================
-# TAB 1: GÜNLÜK GÖREVLER & DERS DERS SORU GİRİŞİ
-# ==========================================
-with tab1:
-    secilen_tarih = st.date_input("📅 Takip Tarihi Seçin", date.today())
-    tarih_str = secilen_tarih.strftime("%Y-%m-%d")
-
-    gunluk_hedef = st.number_input("🎯 Günlük Soru Hedefi", min_value=50, max_value=500, value=150, step=10)
-
-    st.subheader("📊 Ders Bazlı Soru Çözümü & Net Takibi")
-    soru_verileri = {}
-    toplam_cozuldu = 0
-    cols = st.columns(3)
-    for i, ders in enumerate(DERSLER):
-        with cols[i % 3]:
-            st.markdown(f"**{ders}**")
-            d = st.number_input(f"{ders} D", min_value=0, value=0, step=1, key=f"{ders}_d", disabled=(st.session_state["user_role"] == "Veli"))
-            y = st.number_input(f"{ders} Y", min_value=0, value=0, step=1, key=f"{ders}_y", disabled=(st.session_state["user_role"] == "Veli"))
-            b = st.number_input(f"{ders} B", min_value=0, value=0, step=1, key=f"{ders}_b", disabled=(st.session_state["user_role"] == "Veli"))
-            net = max(0.0, round(d - (y / 3.0), 2))
-            toplam_cozuldu += (d + y + b)
-            st.caption(f"📈 Net: **{net}**")
-            soru_verileri[ders] = (d, y, b, net)
-
-    hedef_yuzde = min(1.0, toplam_cozuldu / gunluk_hedef)
-    st.markdown(f"**Günlük Hedef İlerlemesi ({toplam_cozuldu} / {gunluk_hedef} Soru)**")
-    st.progress(hedef_yuzde)
-
-    st.divider()
-    okunan_sayfa = st.number_input("📖 Bugün Okunan Kitap Sayfası", min_value=0, value=0, step=5, disabled=(st.session_state["user_role"] == "Veli"))
-
-    if st.session_state["user_role"] == "Öğrenci":
-        if st.button("💾 Günlük Verileri Kaydet", type="primary"):
-            if not USE_SUPABASE:
-                for ders, (d, y, b, net) in soru_verileri.items():
-                    c.execute("""INSERT INTO ders_soru_takip (tarih, ders, dogru, yanlis, bos, net)
-                                 VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(tarih, ders) DO UPDATE SET 
-                                 dogru=excluded.dogru, yanlis=excluded.yanlis, bos=excluded.bos, net=excluded.net""",
-                              (tarih_str, ders, d, y, b, net))
-                
-                c.execute("""INSERT INTO okuma_takip (tarih, okunan_sayfa) VALUES (?, ?) 
-                             ON CONFLICT(tarih) DO UPDATE SET okunan_sayfa=excluded.okunan_sayfa""",
-                          (tarih_str, okunan_sayfa))
-                conn.commit()
-            st.success("Günün verileri kaydedildi! 🎉")
+import streamlit as st
 
 # ==========================================
-# TAB 2: DENEME SINAVLARI & LGS PUANI
+# 1. SOL MENÜ (SIDEBAR) NAVİGASYONU
 # ==========================================
-with tab2:
-    st.subheader("📝 LGS Deneme Sınavı Kaydı ve Puan Hesaplama")
-    with st.form("deneme_form"):
-        deneme_adi = st.text_input("Deneme Sınavı Adı", "Örn: Özdebir 1. Deneme")
-        deneme_tarihi = st.date_input("Deneme Tarihi", date.today())
+st.sidebar.title("🎓 LGS Takip Paneli")
+st.sidebar.divider()
+
+# Sayfa Seçim Menüsü
+selected_page = st.sidebar.radio(
+    "📌 Gezinme Menüsü:",
+    [
+        "📝 Günlük Görev & Soru", 
+        "📝 Denemeler & LGS Puanı",
+        "🎨 Tahta",
+        "📕 Yanlış Defteri",
+        "🎯 Müfredat Takibi",
+        "🏆 Puan & Rozetler",
+        "⏱️ Pomodoro",
+        "🛡️ Veli Onay", 
+        "📊 Analiz & Koçluk"
+    ],
+    index=0 # Varsayılan açılış sayfası
+)
+
+st.sidebar.divider()
+# İsteğe bağlı: Sol menünün altına minik bilgi veya LGS sayacı koyabilirsiniz
+st.sidebar.info("💡 İpucu: Menüden istediğiniz modüle hızlıca geçiş yapabilirsiniz.")
+
+# ==========================================
+# 2. SAYFA İÇERİKLERİ VE KONTROL
+# ==========================================
+
+if selected_page == "📝 Günlük Görev & Soru":
+    st.header("📝 Günlük Görev & Soru Takibi")
+    # 1. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "📝 Denemeler & LGS Puanı":
+    st.header("📝 Denemeler & LGS Puanı")
+    # 2. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "🎨 Tahta":
+    st.header("🎨 Çizim Tahtası")
+    
+    if st_canvas is None:
+        st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
+    else:
+        # Üst Araç Çubuğu (Kompakt Ayarlar)
+        col_tool1, col_tool2, col_tool3, col_tool4 = st.columns([2, 1, 1, 1])
         
-        d_cols = st.columns(3)
-        netler = {}
-        for i, ders in enumerate(DERSLER):
-            with d_cols[i % 3]:
-                max_s = 20 if ders in ["Türkçe", "Matematik", "Fen"] else 10
-                varsayilan_d = 15 if max_s == 20 else 8
-                d = st.number_input(f"{ders} D", min_value=0, max_value=max_s, value=varsayilan_d, key=f"den_{ders}_d")
-                y = st.number_input(f"{ders} Y", min_value=0, max_value=max_s, value=2, key=f"den_{ders}_y")
-                net = max(0.0, round(d - (y / 3.0), 2))
-                netler[ders] = net
-                st.caption(f"{ders} Net: **{net}**")
+        with col_tool1:
+            mode_option = st.selectbox(
+                "🖌️ Çizim Aracı:",
+                ["Kalem (Serbest Çizim)", "Düz Çizgi", "Dikdörtgen", "Daire", "Seç / Taşı"],
+                index=0
+            )
+            mode_map = {
+                "Kalem (Serbest Çizim)": "freedraw",
+                "Düz Çizgi": "line",
+                "Dikdörtgen": "rect",
+                "Daire": "circle",
+                "Seç / Taşı": "transform"
+            }
+            drawing_mode = mode_map[mode_option]
 
-        submit_deneme = st.form_submit_button("🏆 Denemeyi Kaydet", type="primary")
+        with col_tool2:
+            stroke_width = st.slider("✏️ Kalınlık:", 1, 25, 4)
 
-    if submit_deneme:
-        toplam_net = sum(netler.values())
-        agirlikli_puan = sum(netler[ders] * LGS_KATSAYILAR[ders] for ders in DERSLER)
-        tahmini_puan = min(500.0, round(190.0 + (agirlikli_puan * 1.52), 2))
+        with col_tool3:
+            stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
 
-        st.balloons()
-        st.success(f"🎉 **{deneme_adi}** Kaydedildi!")
-        col_m1, col_m2 = st.columns(2)
-        col_m1.metric("Toplam Net", f"{round(toplam_net, 2)} Net")
-        col_m2.metric("Tahmini LGS Puanı", f"{tahmini_puan} Puan")
+        with col_tool4:
+            bg_color = st.color_picker("🖼️ Arka Plan:", "#FFFFFF")
 
-        if not USE_SUPABASE:
-            c.execute("""INSERT INTO denemeler (tarih, deneme_adi, turkce_net, mat_net, fen_net, sosyal_net, din_net, ing_net, toplam_net, puan)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                      (deneme_tarihi.strftime("%Y-%m-%d"), deneme_adi, netler["Türkçe"], netler["Matematik"], netler["Fen"], 
-                       netler["Sosyal"], netler["Din Kültürü"], netler["İngilizce"], toplam_net, tahmini_puan))
-            conn.commit()
+        st.divider()
 
-    st.divider()
-    if not USE_SUPABASE:
-        df_deneme = pd.read_sql_query("SELECT * FROM denemeler ORDER BY tarih ASC", conn)
-        if not df_deneme.empty:
-            st.dataframe(df_deneme[['tarih', 'deneme_adi', 'toplam_net', 'puan']], use_container_width=True)
-            st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
+        # Çizim Tuvali
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.2)",
+            stroke_width=stroke_width,
+            stroke_color=stroke_color,
+            background_color=bg_color,
+            update_streamlit=True,
+            width=700,
+            height=550,
+            drawing_mode=drawing_mode,
+            key="canvas_sidebar_board",
+        )
+
+        col_act1, col_act2 = st.columns([1, 1])
+        with col_act1:
+            if st.button("🗑️ Tahtayı Temizle", use_container_width=True):
+                st.rerun()
+
+        with col_act2:
+            if canvas_result is not None and canvas_result.image_data is not None:
+                draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+                import io
+                buf = io.BytesIO()
+                draw_img.save(buf, format="PNG")
+                byte_im = buf.getvalue()
+                
+                st.download_button(
+                    label="💾 Çizimi İndir (PNG)",
+                    data=byte_im,
+                    file_name="tahta_cizim.png",
+                    mime="image/png",
+                    use_container_width=True
+                )
+
+elif selected_page == "📕 Yanlış Defteri":
+    st.header("📕 Yanlış Defteri")
+    # 4. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "🎯 Müfredat Takibi":
+    st.header("🎯 Müfredat Takibi")
+    # 5. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "🏆 Puan & Rozetler":
+    st.header("🏆 Puan & Rozetler")
+    # 6. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "⏱️ Pomodoro":
+    st.header("⏱️ Pomodoro Sayacı")
+    # 7. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "🛡️ Veli Onay":
+    st.header("🛡️ Veli Onay Paneli")
+    # 8. Sayfa Kodlarınız Buraya Gelecek...
+
+elif selected_page == "📊 Analiz & Koçluk":
+    st.header("📊 Analiz & Koçluk")
+    # 9. Sayfa Kodlarınız Buraya Gelecek...
 
 # ==========================================
 # TAB 3: TAHTA
