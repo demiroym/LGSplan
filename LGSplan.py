@@ -342,9 +342,8 @@ with tab3:
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
-        # Session State Hazırlıkları
-        if "soru_listesi" not in st.session_state:
-            st.session_state["soru_listesi"] = []
+        if "soru_listesi_bytes" not in st.session_state:
+            st.session_state["soru_listesi_bytes"] = []
         if "aktif_soru_idx" not in st.session_state:
             st.session_state["aktif_soru_idx"] = 0
 
@@ -379,7 +378,6 @@ with tab3:
             stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
             bg_color = st.color_picker("🖼️ Tahta Arka Planı:", "#FFFFFF")
 
-            # PDF VE GÖRSEL YÜKLEME BÖLÜMÜ
             if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz":
                 st.divider()
                 st.markdown("#### 📥 PDF veya Soru Yükle")
@@ -394,82 +392,68 @@ with tab3:
                 if st.button("🚀 Dosyaları Tahtaya Aktar", type="primary"):
                     if uploaded_files:
                         islenen_resimler = []
-                        for file in uploaded_files:
-                            file_ext = file.name.split('.')[-1].lower()
-                            
-                            # PDF DOSYASI İŞLEME
-                            if file_ext == "pdf":
-                                try:
-                                    import pypdfium2 as pdfium
-                                    pdf = pdfium.PdfDocument(file)
-                                    for i in range(len(pdf)):
-                                        page = pdf[i]
-                                        image = page.render(scale=2).to_pil() # Yüksek çözünürlüklü render
-                                        islenen_resimler.append(image)
-                                except Exception as e:
-                                    st.error(f"PDF işlenirken `pypdfium2` hatası alındı: {e}")
-                            
-                            # RESİM DOSYASI İŞLEME
-                            else:
-                                try:
-                                    img = Image.open(file).convert("RGBA")
-                                    islenen_resimler.append(img)
-                                except Exception as e:
-                                    st.error(f"Resim dosyası açılamadı ({file.name}): {e}")
+                        with st.spinner("PDF / Görseller işleniyor..."):
+                            for file in uploaded_files:
+                                file_ext = file.name.split('.')[-1].lower()
+                                
+                                if file_ext == "pdf":
+                                    try:
+                                        import pypdfium2 as pdfium
+                                        pdf = pdfium.PdfDocument(file)
+                                        for i in range(len(pdf)):
+                                            page = pdf[i]
+                                            # Ölçekleme ve Tuval Boyutuna Sığdırma (750x550)
+                                            pil_img = page.render(scale=1.5).to_pil().convert("RGBA")
+                                            pil_img.thumbnail((750, 550), Image.Resampling.LANCZOS)
+                                            
+                                            canvas_bg = Image.new("RGBA", (750, 550), (255, 255, 255, 255))
+                                            offset = ((750 - pil_img.width) // 2, (550 - pil_img.height) // 2)
+                                            canvas_bg.paste(pil_img, offset, pil_img)
+                                            islenen_resimler.append(canvas_bg)
+                                    except Exception as e:
+                                        st.error(f"PDF işlenirken hata oluştu: {e}")
+                                else:
+                                    try:
+                                        pil_img = Image.open(file).convert("RGBA")
+                                        pil_img.thumbnail((750, 550), Image.Resampling.LANCZOS)
+                                        
+                                        canvas_bg = Image.new("RGBA", (750, 550), (255, 255, 255, 255))
+                                        offset = ((750 - pil_img.width) // 2, (550 - pil_img.height) // 2)
+                                        canvas_bg.paste(pil_img, offset, pil_img)
+                                        islenen_resimler.append(canvas_bg)
+                                    except Exception as e:
+                                        st.error(f"Görsel açılamadı: {e}")
                         
                         if islenen_resimler:
-                            st.session_state["soru_listesi"] = islenen_resimler
+                            st.session_state["soru_listesi_bytes"] = islenen_resimler
                             st.session_state["aktif_soru_idx"] = 0
-                            st.success(f"✅ Toplam {len(islenen_resimler)} sayfa/soru tahtaya yüklendi!")
-                        else:
-                            st.error("Hiçbir sayfa aktarılamadı.")
-                    else:
-                        st.warning("Lütfen bir PDF veya resim dosyası seçin.")
+                            st.success(f"✅ Toplam {len(islenen_resimler)} sayfa/soru yüklendi!")
+                            st.rerun()
 
         with col_c2:
             bg_image = None
             canvas_width = 750
             canvas_height = 550
 
-            # PDF / Soru Yükleme Modu Aktifse Resim Hazırlama
-            if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" and st.session_state["soru_listesi"]:
-                toplam_soru = len(st.session_state["soru_listesi"])
+            if tahta_modu == "📚 PDF / Görsel Soru Yükle & Çöz" and st.session_state["soru_listesi_bytes"]:
+                toplam_soru = len(st.session_state["soru_listesi_bytes"])
                 m_idx = st.session_state["aktif_soru_idx"]
                 
-                # Soru / Sayfa Gezinti Butonları
                 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
                 with col_nav1:
-                    if st.button("⬅️ Önceki Sayfa/Soru", disabled=(m_idx == 0)):
+                    if st.button("⬅️ Önceki Sayfa", disabled=(m_idx == 0)):
                         st.session_state["aktif_soru_idx"] -= 1
                         st.rerun()
                 with col_nav2:
-                    st.markdown(f"<h4 style='text-align: center;'>Sayfa/Soru {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h4 style='text-align: center;'>Sayfa {m_idx + 1} / {toplam_soru}</h4>", unsafe_allow_html=True)
                 with col_nav3:
-                    if st.button("İleri Sayfa/Soru ➡️", disabled=(m_idx == toplam_soru - 1)):
+                    if st.button("İleri Sayfa ➡️", disabled=(m_idx == toplam_soru - 1)):
                         st.session_state["aktif_soru_idx"] += 1
                         st.rerun()
 
-                # Aktif Görselin Tuvala Sığdırılması
-                curr_img = st.session_state["soru_listesi"][m_idx]
-                try:
-                    img = curr_img.copy()
-                    max_w, max_h = 750, 550
-                    img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
-                    
-                    # Tuval merkezleme
-                    canvas_bg = Image.new("RGBA", (max_w, max_h), (255, 255, 255, 255))
-                    offset = ((max_w - img.width) // 2, (max_h - img.height) // 2)
-                    canvas_bg.paste(img, offset, img if img.mode == 'RGBA' else None)
-                    
-                    bg_image = canvas_bg
-                except Exception as e:
-                    st.error(f"Sayfa görüntülenirken hata oluştu: {e}")
+                bg_image = st.session_state["soru_listesi_bytes"][m_idx]
 
-            # DİNAMİK KEY SİSTEMİ (Sayfa değiştikçe çizim alanı güncellenir)
-            if tahta_modu == "⚪ Boş Beyaz Tahta":
-                c_key = "canvas_empty_board"
-            else:
-                c_key = f"canvas_pdf_page_{st.session_state['aktif_soru_idx']}"
+            c_key = "canvas_empty" if tahta_modu == "⚪ Boş Beyaz Tahta" else f"canvas_pdf_page_{st.session_state['aktif_soru_idx']}"
 
             st.markdown(f"**✏️ Çizim Alanı ({tahta_modu})**")
 
@@ -486,8 +470,7 @@ with tab3:
                 key=c_key,
             )
 
-            # ÇİZİM TEMİZLEME VE İNDİRME ARAÇLARI
-            st.caption("💡 **İpucu:** Çizimi tek adım geri almak için klavyenizden `Ctrl + Z` tuşlarını kullanabilirsiniz.")
+            st.caption("💡 **İpucu:** Çizimi geri almak için klavyenizden `Ctrl + Z` tuşlarına basabilir veya 'Temizle' butonunu kullanabilirsiniz.")
             
             col_act1, col_act2 = st.columns(2)
             with col_act1:
