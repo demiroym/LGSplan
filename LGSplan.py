@@ -5,6 +5,14 @@ from datetime import date, datetime
 import time
 from PIL import Image
 
+# Sayfa yapılandırması - Kodun EN BAŞINDA yer almalıdır
+st.set_page_config(
+    page_title="LGS Takip & Planlama",
+    page_icon="🎓",
+    layout="wide",  # Ekranı tam genişlikte kullanır
+    initial_sidebar_state="expanded"
+)
+
 # --- STREAMLIT COMPATIBILITY PATCH (DRAWABLE CANVAS FIX) ---
 try:
     import streamlit.elements.image as st_image
