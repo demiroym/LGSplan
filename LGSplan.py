@@ -332,6 +332,8 @@ with tab2:
             st.dataframe(df_deneme[['tarih', 'deneme_adi', 'toplam_net', 'puan']], use_container_width=True)
             st.line_chart(df_deneme.set_index('deneme_adi')[['puan', 'toplam_net']])
 
+import streamlit.components.v1 as components
+
 # ==========================================
 # TAB 3: TAHTA
 # ==========================================
@@ -370,25 +372,63 @@ with tab3:
 
         st.divider()
 
-        # Geniş Ekran Desteği ile Çizim Tuvalı
+        # Canvas Alanı
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.2)",
             stroke_width=stroke_width,
             stroke_color=stroke_color,
             background_color=bg_color,
             update_streamlit=True,
-            width=1000,   # Ekranı kaplaması için sabit genişlik
-            height=650,   # Yeterli dikey alan
+            width=730,
+            height=600,
             drawing_mode=drawing_mode,
             key="canvas_full_board",
         )
 
-        col_act1, col_act2 = st.columns([1, 1])
+        # Alt Butonlar
+        col_act1, col_act2, col_act3 = st.columns([1, 1, 1])
+        
         with col_act1:
             if st.button("🗑️ Tahtayı Temizle", use_container_width=True):
                 st.rerun()
 
         with col_act2:
+            # JavaScript ile Tam Ekran Yapma Tetikleyicisi
+            components.html(
+                """
+                <button onclick="goFullscreen()" style="
+                    width: 100%;
+                    height: 38px;
+                    background-color: #0E1117;
+                    color: white;
+                    border: 1px solid #4A4A4A;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 500;">
+                    🖥️ Tam Ekran Modu
+                </button>
+                <script>
+                function goFullscreen() {
+                    /* Streamlit iframe içerisindeki canvas bileşenini bul ve tam ekran yap */
+                    var canvasIframe = window.parent.document.querySelector('iframe[title="streamlit_drawable_canvas.st_canvas"]');
+                    if (canvasIframe) {
+                        if (canvasIframe.requestFullscreen) {
+                            canvasIframe.requestFullscreen();
+                        } else if (canvasIframe.webkitRequestFullscreen) { /* Safari */
+                            canvasIframe.webkitRequestFullscreen();
+                        } else if (canvasIframe.msRequestFullscreen) { /* IE11 */
+                            canvasIframe.msRequestFullscreen();
+                        }
+                    } else {
+                        alert("Canvas elementi bulunamadı.");
+                    }
+                }
+                </script>
+                """,
+                height=45,
+            )
+
+        with col_act3:
             if canvas_result is not None and canvas_result.image_data is not None:
                 draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
                 import io
