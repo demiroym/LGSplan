@@ -78,7 +78,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- DATABASE SETUP (SUPABASE & SQLITE HİBRİT) ---
+# --- DATABASE SETUP ---
 USE_SUPABASE = False
 supabase_client = None
 
@@ -225,28 +225,7 @@ st.markdown(f'''
 </div>
 ''', unsafe_allow_html=True)
 
-# TABS DEFINITION
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-    "📝 Günlük Görev & Soru", 
-    "📝 Denemeler & LGS Puanı",
-    "🎨 Tahta",
-    "📕 Yanlış Defteri",
-    "🎯 Müfredat Takibi",
-    "🏆 Puan & Rozetler",
-    "⏱️ Pomodoro",
-    "🛡️ Veli Onay", 
-    "📊 Analiz & Koçluk"
-])
-
-import streamlit as st
-
-# ==========================================
-# 1. SOL MENÜ (SIDEBAR) NAVİGASYONU
-# ==========================================
-st.sidebar.title("🎓 LGS Takip Paneli")
-st.sidebar.divider()
-
-# Sayfa Seçim Menüsü
+# --- NAVIGATION MENU ---
 selected_page = st.sidebar.radio(
     "📌 Gezinme Menüsü:",
     [
@@ -260,24 +239,26 @@ selected_page = st.sidebar.radio(
         "🛡️ Veli Onay", 
         "📊 Analiz & Koçluk"
     ],
-    index=0 # Varsayılan açılış sayfası
+    index=0
 )
 
 st.sidebar.divider()
-# İsteğe bağlı: Sol menünün altına minik bilgi veya LGS sayacı koyabilirsiniz
 st.sidebar.info("💡 İpucu: Menüden istediğiniz modüle hızlıca geçiş yapabilirsiniz.")
 
+# --- DATES FOR DB ---
+tarih_str = datetime.now().strftime("%Y-%m-%d")
+
 # ==========================================
-# 2. SAYFA İÇERİKLERİ VE KONTROL
+# PAGE ROUTING (SAYFA İÇERİKLERİ)
 # ==========================================
 
 if selected_page == "📝 Günlük Görev & Soru":
     st.header("📝 Günlük Görev & Soru Takibi")
-    # 1. Sayfa Kodlarınız Buraya Gelecek...
+    st.info("Günlük soru çözümlerinizi ve görevlerinizi bu alandan girebilirsiniz.")
 
 elif selected_page == "📝 Denemeler & LGS Puanı":
     st.header("📝 Denemeler & LGS Puanı")
-    # 2. Sayfa Kodlarınız Buraya Gelecek...
+    st.info("Girdiğiniz LGS deneme netlerini ve puan hesaplamalarını buradan takip edebilirsiniz.")
 
 elif selected_page == "🎨 Tahta":
     st.header("🎨 Çizim Tahtası")
@@ -285,7 +266,6 @@ elif selected_page == "🎨 Tahta":
     if st_canvas is None:
         st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
     else:
-        # Üst Araç Çubuğu (Kompakt Ayarlar)
         col_tool1, col_tool2, col_tool3, col_tool4 = st.columns([2, 1, 1, 1])
         
         with col_tool1:
@@ -314,7 +294,6 @@ elif selected_page == "🎨 Tahta":
 
         st.divider()
 
-        # Çizim Tuvali
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.2)",
             stroke_width=stroke_width,
@@ -324,7 +303,7 @@ elif selected_page == "🎨 Tahta":
             width=700,
             height=550,
             drawing_mode=drawing_mode,
-            key="canvas_sidebar_board",
+            key="canvas_board_single",
         )
 
         col_act1, col_act2 = st.columns([1, 1])
@@ -349,105 +328,7 @@ elif selected_page == "🎨 Tahta":
                 )
 
 elif selected_page == "📕 Yanlış Defteri":
-    st.header("📕 Yanlış Defteri")
-    # 4. Sayfa Kodlarınız Buraya Gelecek...
-
-elif selected_page == "🎯 Müfredat Takibi":
-    st.header("🎯 Müfredat Takibi")
-    # 5. Sayfa Kodlarınız Buraya Gelecek...
-
-elif selected_page == "🏆 Puan & Rozetler":
-    st.header("🏆 Puan & Rozetler")
-    # 6. Sayfa Kodlarınız Buraya Gelecek...
-
-elif selected_page == "⏱️ Pomodoro":
-    st.header("⏱️ Pomodoro Sayacı")
-    # 7. Sayfa Kodlarınız Buraya Gelecek...
-
-elif selected_page == "🛡️ Veli Onay":
-    st.header("🛡️ Veli Onay Paneli")
-    # 8. Sayfa Kodlarınız Buraya Gelecek...
-
-elif selected_page == "📊 Analiz & Koçluk":
-    st.header("📊 Analiz & Koçluk")
-    # 9. Sayfa Kodlarınız Buraya Gelecek...
-
-# ==========================================
-# TAB 3: TAHTA
-# ==========================================
-with tab3:
-    st.subheader("🎨 Tahta")
-
-    if st_canvas is None:
-        st.error("⚠️ `streamlit-drawable-canvas` kütüphanesi yüklenemedi. Lütfen `requirements.txt` dosyanıza `streamlit-drawable-canvas` eklediğinizden emin olun.")
-    else:
-        # Üst Araç Çubuğu (Kompakt Ayarlar)
-        col_tool1, col_tool2, col_tool3, col_tool4 = st.columns([2, 1, 1, 1])
-        
-        with col_tool1:
-            mode_option = st.selectbox(
-                "🖌️ Çizim Aracı:",
-                ["Kalem (Serbest Çizim)", "Düz Çizgi", "Dikdörtgen", "Daire", "Seç / Taşı"],
-                index=0
-            )
-            mode_map = {
-                "Kalem (Serbest Çizim)": "freedraw",
-                "Düz Çizgi": "line",
-                "Dikdörtgen": "rect",
-                "Daire": "circle",
-                "Seç / Taşı": "transform"
-            }
-            drawing_mode = mode_map[mode_option]
-
-        with col_tool2:
-            stroke_width = st.slider("✏️ Kalınlık:", 1, 25, 4)
-
-        with col_tool3:
-            stroke_color = st.color_picker("🎨 Kalem Rengi:", "#1E40AF")
-
-        with col_tool4:
-            bg_color = st.color_picker("🖼️ Arka Plan:", "#FFFFFF")
-
-        st.divider()
-
-        # Standart ve Stabil Çizim Tuvali
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.2)",
-            stroke_width=stroke_width,
-            stroke_color=stroke_color,
-            background_color=bg_color,
-            update_streamlit=True,
-            width=700,
-            height=550,
-            drawing_mode=drawing_mode,
-            key="canvas_stable_clean",
-        )
-
-        col_act1, col_act2 = st.columns([1, 1])
-        with col_act1:
-            if st.button("🗑️ Tahtayı Temizle", use_container_width=True):
-                st.rerun()
-
-        with col_act2:
-            if canvas_result is not None and canvas_result.image_data is not None:
-                draw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-                import io
-                buf = io.BytesIO()
-                draw_img.save(buf, format="PNG")
-                byte_im = buf.getvalue()
-                
-                st.download_button(
-                    label="💾 Çizimi İndir (PNG)",
-                    data=byte_im,
-                    file_name="tahta_cizim.png",
-                    mime="image/png",
-                    use_container_width=True
-                )
-# ==========================================
-# TAB 4: YANLIŞ SORU DEFTERİ
-# ==========================================
-with tab4:
-    st.subheader("📚 Yanlış Soru Defteri")
+    st.header("📚 Yanlış Soru Defteri")
     st.caption("Çözmekte zorlandığınız veya yanlış yaptığınız soruları görseli, dersi, konusu ve notlarınızla birlikte kaydedin.")
 
     if "yanlis_sorular" not in st.session_state:
@@ -507,7 +388,7 @@ with tab4:
                 }
                 
                 st.session_state["yanlis_sorular"].append(yeni_kayit)
-                st.success("✅ Soru Yanlış Defterine başarıyla kaydedildi! Beyaz Tahta sekmesinden çağırıp kalemle çözebilirsiniz.")
+                st.success("✅ Soru Yanlış Defterine başarıyla kaydedildi!")
                 st.rerun()
 
     st.divider()
@@ -540,11 +421,8 @@ with tab4:
                     else:
                         st.info("Bu kayıt için görsel yüklenmemiş.")
 
-# ==========================================
-# TAB 5: MÜFREDAT TAKİBİ
-# ==========================================
-with tab5:
-    st.subheader("🎯 LGS Konu ve Müfredat Takip Paneli")
+elif selected_page == "🎯 Müfredat Takibi":
+    st.header("🎯 LGS Konu ve Müfredat Takip Paneli")
     secilen_ders_konu = st.selectbox("Ders Seçin", DERSLER, key="mufredat_ders")
     konular = VARSAYILAN_KONULAR[secilen_ders_konu]
     
@@ -558,11 +436,8 @@ with tab5:
     st.progress(yuzde / 100)
     st.caption(f"Müfredat Tamamlanma: **%{yuzde}** ({tamamlanan_sayisi}/{len(konular)} Konu)")
 
-# ==========================================
-# TAB 6: ROZET VE PUAN SİSTEMİ
-# ==========================================
-with tab6:
-    st.subheader("🏆 Puan Paneli & Başarı Rozetleri")
+elif selected_page == "🏆 Puan & Rozetler":
+    st.header("🏆 Puan Paneli & Başarı Rozetleri")
     toplam_s = 0
     toplam_sayfa = 0
     if not USE_SUPABASE:
@@ -608,11 +483,8 @@ with tab6:
         </div>
         ''', unsafe_allow_html=True)
 
-# ==========================================
-# TAB 7: POMODORO ZAMANLAYICI
-# ==========================================
-with tab7:
-    st.subheader("⏱️ Odaklanma Zamanlayıcısı (Pomodoro)")
+elif selected_page == "⏱️ Pomodoro":
+    st.header("⏱️ Odaklanma Zamanlayıcısı (Pomodoro)")
     col_p1, col_p2 = st.columns(2)
     with col_p1:
         sure_dk = st.number_input("Çalışma Süresi (Dakika)", min_value=1, max_value=60, value=25)
@@ -649,11 +521,8 @@ with tab7:
             st.balloons()
             st.success("🎉 Süre bitti! Şimdi harika bir molayı hak ettin!")
 
-# ==========================================
-# TAB 8: VELİ ONAY PANELİ
-# ==========================================
-with tab8:
-    st.subheader("🛡️ Veli Kontrolü ve Onay Paneli")
+elif selected_page == "🛡️ Veli Onay":
+    st.header("🛡️ Veli Kontrolü ve Onay Paneli")
     mevcut_onay = False
     mevcut_not = ""
     
@@ -689,11 +558,8 @@ with tab8:
                 st.success("Veli onayı güncellendi!")
                 st.rerun()
 
-# ==========================================
-# TAB 9: ANALİZ & KOÇLUK
-# ==========================================
-with tab9:
-    st.subheader("📊 Çalışma Analizi ve Akıllı Koçluk")
+elif selected_page == "📊 Analiz & Koçluk":
+    st.header("📊 Çalışma Analizi ve Akıllı Koçluk")
     if not USE_SUPABASE:
         df_toplam = pd.read_sql_query("SELECT ders, SUM(dogru) as Toplam_Dogru, SUM(yanlis) as Toplam_Yanlis, SUM(net) as Toplam_Net FROM ders_soru_takip GROUP BY ders", conn)
         if not df_toplam.empty:
