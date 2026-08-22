@@ -370,15 +370,15 @@ with tab3:
 
         st.divider()
 
-        # Tam Genişlik Çizim Tuvalı
+        # Geniş Ekran Desteği ile Çizim Tuvalı
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.2)",
             stroke_width=stroke_width,
             stroke_color=stroke_color,
             background_color=bg_color,
             update_streamlit=True,
-            height=650,  # Geniş dikey alan
-            use_column_width=True,  # Ekran genişliğini tam kaplar
+            width=1000,   # Ekranı kaplaması için sabit genişlik
+            height=650,   # Yeterli dikey alan
             drawing_mode=drawing_mode,
             key="canvas_full_board",
         )
