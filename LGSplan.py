@@ -388,21 +388,22 @@ with tab3:
                 st.divider()
                 st.markdown("#### 🎯 Yanlış Soruları Çağır")
                 if st.button("📥 Yanlış Soru Defterinden Aktar", use_container_width=True):
-    if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
-        aktarilanlar = []
-        for ys in st.session_state["yanlis_sorular"]:
-            if isinstance(ys, dict) and ys.get("gorsel") is not None:
-                aktarilanlar.append(ys["gorsel"])
-        
-        if aktarilanlar:
-            st.session_state["soru_listesi_bytes"] = aktarilanlar
-            st.session_state["aktif_soru_idx"] = 0
-            st.success(f"✅ {len(aktarilanlar)} adet yanlış soru tahtaya yüklendi!")
-            st.rerun()
-        else:
-            st.warning("Yanlış sorular listesindeki kayıtlarda görsel/PDF bulunamadı.")
-    else:
-        st.info("Henüz kaydedilmiş yanlış soru bulunmamaktadır.")
+                    # Python if blogunun altındaki kodların 4 boşluk içeride olması gerekir:
+                    if "yanlis_sorular" in st.session_state and st.session_state["yanlis_sorular"]:
+                        aktarilanlar = []
+                        for ys in st.session_state["yanlis_sorular"]:
+                            if isinstance(ys, dict) and ys.get("gorsel") is not None:
+                                aktarilanlar.append(ys["gorsel"])
+                        
+                        if aktarilanlar:
+                            st.session_state["soru_listesi_bytes"] = aktarilanlar
+                            st.session_state["aktif_soru_idx"] = 0
+                            st.success(f"✅ {len(aktarilanlar)} adet yanlış soru tahtaya yüklendi!")
+                            st.rerun()
+                        else:
+                            st.warning("Yanlış sorular listesindeki kayıtlarda görsel/PDF bulunamadı.")
+                    else:
+                        st.info("Henüz kaydedilmiş yanlış soru bulunmamaktadır.")
 
                 st.divider()
                 st.markdown("#### 📥 Dışarıdan PDF / Görsel Yükle")
