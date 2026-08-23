@@ -254,11 +254,133 @@ tarih_str = datetime.now().strftime("%Y-%m-%d")
 
 if selected_page == "📝 Günlük Görev & Soru":
     st.header("📝 Günlük Görev & Soru Takibi")
-    st.info("Günlük soru çözümlerinizi ve görevlerinizi bu alandan girebilirsiniz.")
+    
+    secilen_tarih = st.date_input("📅 Çalışma Tarihi", date.today())
+    t_str = secilen_tarih.strftime("%Y-%m-%d")
+    
+    col_soru, col_okuma = st.columns([2, 1])
+    
+    with col_soru:
+        st.subheader("📚 Günlük Soru Çözümü")
+        with st.form("form_gunluk_soru"):
+            secilen_ders = st.selectbox("Ders Seçin", DERSLER)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                d_sayisi = st.number_input("Doğru Sayısı", min_value=0, max_value=500, value=0)
+            with c2:
+                y_sayisi = st.number_input("Yanlış Sayısı", min_value=0, max_value=500, value=0)
+            with c3:
+                b_sayisi = st.number_input("Boş Sayısı", min_value=0, max_value=500, value=0)
+            
+            hesaplanan_net = max(0.0, d_sayisi - (y_sayisi / 3.0))
+            st.caption(f"🧮 Hesaplanan Net: **{hesaplanan_net:.2f}** (3 Yanlış 1 Doğruyu Götürür)")
+            
+            btn_soru_kaydet = st.form_submit_button("💾 Soru Sayısını Kaydet", type="primary")
+            if btn_soru_kaydet:
+                if not USE_SUPABASE:
+                    c.execute("""INSERT INTO ders_soru_takip (tarih, ders, dogru, yanlis, bos, net)
+                                 VALUES (?, ?, ?, ?, ?, ?)
+                                 ON CONFLICT(tarih, ders) DO UPDATE SET 
+                                 dogru=excluded.dogru, yanlis=excluded.yanlis, bos=excluded.bos, net=excluded.net""",
+                              (t_str, secilen_ders, d_sayisi, y_sayisi, b_sayisi, hesaplanan_net))
+                    conn.commit()
+                st.success(f"✅ {secilen_ders} dersi için veriler kaydedildi!")
+                st.rerun()
+
+    with col_okuma:
+        st.subheader("📖 Kitap Okuma Takibi")
+        with st.form("form_okuma"):
+            okunan_sayfa = st.number_input("Okunan Sayfa Sayısı", min_value=0, max_value=500, value=0)
+            btn_okuma_kaydet = st.form_submit_button("💾 Okumayı Kaydet")
+            if btn_okuma_kaydet:
+                if not USE_SUPABASE:
+                    c.execute("""INSERT INTO okuma_takip (tarih, okunan_sayfa)
+                                 VALUES (?, ?)
+                                 ON CONFLICT(tarih) DO UPDATE SET okunan_sayfa=excluded.okunan_sayfa""",
+                              (t_str, okunan_sayfa))
+                    conn.commit()
+                st.success("✅ Okuma takibi kaydedildi!")
+                st.rerun()
+
+    st.divider()
+    st.subheader(f"📊 {t_str} Tarihli Çalışma Özeti")
+    
+    if not USE_SUPABASE:
+        df_gunluk = pd.read_sql_query("SELECT ders as 'Ders', dogru as 'Doğru', yanlis as 'Yanlış', bos as 'Boş', net as 'Net' FROM ders_soru_takip WHERE tarih=?", conn, params=(t_str,))
+        df_okuma_gun = pd.read_sql_query("SELECT okunan_sayfa FROM okuma_takip WHERE tarih=?", conn, params=(t_str,))
+        
+        m1, m2, m3 = st.columns(3)
+        toplam_cozulen = int(df_gunluk[['Doğru', 'Yanlış', 'Boş']].sum().sum()) if not df_gunluk.empty else 0
+        toplam_net_gun = float(df_gunluk['Net'].sum()) if not df_gunluk.empty else 0.0
+        okunan_gun = int(df_okuma_gun['okunan_sayfa'].iloc[0]) if not df_okuma_gun.empty else 0
+
+        m1.metric("Toplanan Soru", f"{toplam_cozulen} Soru")
+        m2.metric("Toplam Net", f"{toplam_net_gun:.2f}")
+        m3.metric("Okunan Sayfa", f"{okunan_gun} Sayfa")
+
+        if not df_gunluk.empty:
+            st.dataframe(df_gunluk, use_container_width=True)
+        else:
+            st.info("Bu tarih için henüz ders bazlı soru girişi yapılmadı.")
 
 elif selected_page == "📝 Denemeler & LGS Puanı":
-    st.header("📝 Denemeler & LGS Puanı")
-    st.info("Girdiğiniz LGS deneme netlerini ve puan hesaplamalarını buradan takip edebilirsiniz.")
+    st.header("📝 Deneme Sınavları & LGS Puan Hesaplama")
+    
+    with st.expander("➕ Yeni Deneme Sınavı Ekle", expanded=True):
+        with st.form("form_deneme"):
+            d_adi = st.text_input("Deneme Sınavı Adı/Yayın", placeholder="Örn: Özdebir 1. Deneme")
+            d_tarih = st.date_input("Deneme Tarihi", date.today())
+            
+            st.markdown("#### Ders Netleri")
+            col_d1, col_d2, col_d3 = st.columns(3)
+            with col_d1:
+                t_net = st.number_input("Türkçe Net (Max 20)", min_value=0.0, max_value=20.0, step=0.25, value=15.0)
+                m_net = st.number_input("Matematik Net (Max 20)", min_value=0.0, max_value=20.0, step=0.25, value=15.0)
+            with col_d2:
+                f_net = st.number_input("Fen Bilimleri Net (Max 20)", min_value=0.0, max_value=20.0, step=0.25, value=15.0)
+                s_net = st.number_input("Sosyal Bilgiler Net (Max 10)", min_value=0.0, max_value=10.0, step=0.25, value=8.0)
+            with col_d3:
+                din_net = st.number_input("Din Kültürü Net (Max 10)", min_value=0.0, max_value=10.0, step=0.25, value=8.0)
+                ing_net = st.number_input("İngilizce Net (Max 10)", min_value=0.0, max_value=10.0, step=0.25, value=8.0)
+
+            # LGS Tahmini Puan Hesaplama Formülü
+            taban_puan = 194.7
+            hesaplanan_puan = taban_puan + (
+                (t_net * LGS_KATSAYILAR["Türkçe"]) +
+                (m_net * LGS_KATSAYILAR["Matematik"]) +
+                (f_net * LGS_KATSAYILAR["Fen"]) +
+                (s_net * LGS_KATSAYILAR["Sosyal"]) +
+                (din_net * LGS_KATSAYILAR["Din Kültürü"]) +
+                (ing_net * LGS_KATSAYILAR["İngilizce"])
+            ) * 1.62
+            
+            toplam_deneme_net = t_net + m_net + f_net + s_net + din_net + ing_net
+            st.info(f"📊 **Toplam Net:** {toplam_deneme_net:.2f} / 90 | 🎯 **Tahmini LGS Puanı:** {hesaplanan_puan:.2f}")
+
+            btn_deneme_kaydet = st.form_submit_button("💾 Denemeyi Kaydet", type="primary")
+            if btn_deneme_kaydet:
+                if not d_adi:
+                    st.warning("⚠️ Lütfen deneme adını giriniz.")
+                else:
+                    if not USE_SUPABASE:
+                        c.execute("""INSERT INTO denemeler 
+                                     (tarih, deneme_adi, turkce_net, mat_net, fen_net, sosyal_net, din_net, ing_net, toplam_net, puan)
+                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                  (d_tarih.strftime("%Y-%m-%d"), d_adi, t_net, m_net, f_net, s_net, din_net, ing_net, toplam_deneme_net, hesaplanan_puan))
+                        conn.commit()
+                    st.success("✅ Deneme sınavı başarıyla kaydedildi!")
+                    st.rerun()
+
+    st.divider()
+    st.subheader("📈 Deneme Sınav Geçmişi ve İlerleme")
+    
+    if not USE_SUPABASE:
+        df_deneme = pd.read_sql_query("SELECT id, tarih as Tarih, deneme_adi as 'Deneme Adı', toplam_net as 'Toplam Net', puan as 'Tahmini Puan' FROM denemeler ORDER BY tarih DESC", conn)
+        if not df_deneme.empty:
+            st.dataframe(df_deneme.drop(columns=['id']), use_container_width=True)
+            st.line_chart(df_deneme.set_index('Tarih')['Tahmini Puan'])
+        else:
+            st.info("Henüz kaydedilmiş bir deneme sınavı bulunmuyor.")
 
 elif selected_page == "🎨 Tahta":
     st.header("🎨 Çizim Tahtası")
